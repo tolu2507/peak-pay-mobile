@@ -2542,6 +2542,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@smile_identity/react-native-expo@npm:^11.2.8":
+  version: 11.2.8
+  resolution: "@smile_identity/react-native-expo@npm:11.2.8"
+  peerDependencies:
+    expo: "*"
+    react: "*"
+    react-native: "*"
+  checksum: 10/2f8b04ce468ec535532176a0bc4defdf9185c55a8d6229b99d30bbf28531af463d40057eb3ba9b318926b017c3165b884d13c12c4a7df18975d2776df947ce03
+  languageName: node
+  linkType: hard
+
 "@types/babel__core@npm:^7.1.14":
   version: 7.20.5
   resolution: "@types/babel__core@npm:7.20.5"
@@ -6374,6 +6385,7 @@ __metadata:
     "@react-navigation/elements": "npm:^2.9.10"
     "@react-navigation/native": "npm:^7.1.33"
     "@shopify/react-native-skia": "npm:^2.5.3"
+    "@smile_identity/react-native-expo": "npm:^11.2.8"
     "@types/react": "npm:~19.2.2"
     axios: "npm:^1.13.6"
     expo: "npm:~55.0.8"

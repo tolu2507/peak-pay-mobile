@@ -1,12 +1,12 @@
-import React from 'react';
-import { StyleSheet, View, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/shared/ui/base/button';
 import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -20,74 +20,74 @@ export default function LivenessIntroScreen() {
   const router = useRouter();
 
   const handleProceed = () => {
-    router.push('/kyc/camera');
+    router.push('/kyc/smileid-verify' as any);
   };
 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <View style={styles.titleContainer}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                <Ionicons name="chevron-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <ThemedText type="title" style={styles.title}>
-                Liveness Check
-              </ThemedText>
-            </View>
-            <CircularProgress
-              currentStep={2}
-              totalSteps={7}
-              progress={2 / 7}
-              size={60}
-            />
+        <View style={styles.header}>
+          <View style={styles.titleContainer}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="chevron-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <ThemedText type="title" style={styles.title}>
+              Liveness Check
+            </ThemedText>
           </View>
+          <CircularProgress
+            currentStep={2}
+            totalSteps={7}
+            progress={2 / 7}
+            size={60}
+          />
+        </View>
 
-          <ScrollView
-            style={styles.formContainer}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.content}>
-              <ThemedText style={styles.description}>
-                You’re almost there! Center your face in the frame and follow the on screen instructions. Make sure it’s completed by yourself.
-              </ThemedText>
+        <ScrollView
+          style={styles.formContainer}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <ThemedText style={styles.description}>
+              You’re almost there! Center your face in the frame and follow the on screen instructions. Make sure it’s completed by yourself.
+            </ThemedText>
 
-              {/* Wireframe face placeholder */}
-              <View style={styles.facePlaceholderContainer}>
-                <View style={styles.faceWireframe}>
-                  {/* Simplified wireframe using icons/shapes */}
-                  <Ionicons name="person-outline" size={140} color="#FF7A00" opacity={0.3} />
-                  <View style={styles.cornerTL} />
-                  <View style={styles.cornerTR} />
-                  <View style={styles.cornerBL} />
-                  <View style={styles.cornerBR} />
+            {/* Wireframe face placeholder */}
+            <View style={styles.facePlaceholderContainer}>
+              <View style={styles.faceWireframe}>
+                {/* Simplified wireframe using icons/shapes */}
+                <Ionicons name="person-outline" size={140} color="#FF7A00" opacity={0.3} />
+                <View style={styles.cornerTL} />
+                <View style={styles.cornerTR} />
+                <View style={styles.cornerBL} />
+                <View style={styles.cornerBR} />
+              </View>
+            </View>
+
+            <View style={styles.instructionsContainer}>
+              <ThemedText style={styles.instructionTitle}>Before you proceed</ThemedText>
+              {INSTRUCTIONS.map((text, idx) => (
+                <View key={idx} style={styles.instructionRow}>
+                  <Ionicons name="checkmark-circle" size={20} color="#FF7A00" />
+                  <ThemedText style={styles.instructionText}>{text}</ThemedText>
                 </View>
-              </View>
-
-              <View style={styles.instructionsContainer}>
-                <ThemedText style={styles.instructionTitle}>Before you proceed</ThemedText>
-                {INSTRUCTIONS.map((text, idx) => (
-                  <View key={idx} style={styles.instructionRow}>
-                    <Ionicons name="checkmark-circle" size={20} color="#FF7A00" />
-                    <ThemedText style={styles.instructionText}>{text}</ThemedText>
-                  </View>
-                ))}
-              </View>
+              ))}
             </View>
-          </ScrollView>
-
-          <View style={styles.footer}>
-            <Button
-              onPress={handleProceed}
-              width={SCREEN_WIDTH - 48}
-              height={56}
-              backgroundColor="#FF7A00"
-              borderRadius={16}
-            >
-              <ThemedText style={styles.buttonText}>Proceed</ThemedText>
-            </Button>
           </View>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <Button
+            onPress={handleProceed}
+            width={SCREEN_WIDTH - 48}
+            height={56}
+            backgroundColor="#FF7A00"
+            borderRadius={16}
+          >
+            <ThemedText style={styles.buttonText}>Proceed</ThemedText>
+          </Button>
+        </View>
       </SafeAreaView>
     </ThemedView>
   );

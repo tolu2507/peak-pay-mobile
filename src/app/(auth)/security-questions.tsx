@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,21 +16,30 @@ import { Image } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const SECURITY_QUESTIONS = [
-  "What was your childhood nickname?",
-  "What is the name of your first pet?",
-  "In what city were you born?",
-  "What was your dream job as a child?",
-  "What is your mother's maiden name?"
+// Fallback questions if API returns empty
+const FALLBACK_QUESTIONS = [
+  { id: "1", question: "What was your childhood nickname?" },
+  { id: "2", question: "What is the name of your first pet?" },
+  { id: "3", question: "In what city were you born?" },
+  { id: "4", question: "What was your dream job as a child?" },
+  { id: "5", question: "What is your mother's maiden name?" },
 ];
 
 export default function SecurityQuestionsScreen() {
   const router = useRouter();
-  const { form, setFormField, register, isLoading } = useSignupStore();
+  const { form, setFormField, isLoading, securityQuestionsList, fetchSecurityQuestions, answerSecurityQuestions } = useSignupStore();
   const [showCongratulations, setShowCongratulations] = useState(false);
   
   const bottomSheetRef1 = useRef<BottomSheetMethods>(null);
   const bottomSheetRef2 = useRef<BottomSheetMethods>(null);
+
+  // Fetch security questions on mount
+  useEffect(() => {
+    fetchSecurityQuestions();
+  }, []);
+
+  // Use API questions or fallback
+  const questions = securityQuestionsList.length > 0 ? securityQuestionsList : FALLBACK_QUESTIONS;
 
   const isFormValid = 
     form.securityQuestion1 !== '' && 
@@ -38,24 +47,29 @@ export default function SecurityQuestionsScreen() {
     form.securityQuestion2 !== '' && 
     form.securityAnswer2 !== '';
 
+  const handleSelectQuestion = (questionId: string, questionText: string, field: 'securityQuestion1' | 'securityQuestion2', idField: 'securityQuestion1Id' | 'securityQuestion2Id') => {
+    setFormField(field, questionText);
+    setFormField(idField, questionId);
+  };
+
   const handleProceed = async () => {
     if (isFormValid) {
       try {
-        await register();
+        await answerSecurityQuestions();
+        Toast.show('Security questions saved!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
         setShowCongratulations(true);
         
-        // After 3 seconds, redirect to login
         setTimeout(() => {
           setShowCongratulations(false);
           router.replace('/(auth)/login');
         }, 3000);
-      } catch (error) {
-        // Error handled by store/apiClient
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Failed to submit security questions', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
       }
     }
   };
 
-  const renderDropdownTrigger = (label: string, value: string, onSelect: (val: string) => void, ref: React.RefObject<BottomSheetMethods | null>) => (
+  const renderDropdownTrigger = (label: string, value: string, ref: React.RefObject<BottomSheetMethods | null>) => (
     <View style={styles.dropdownContainer}>
       <ThemedText style={styles.fieldLabel}>{label}</ThemedText>
       <TouchableOpacity 
@@ -71,27 +85,27 @@ export default function SecurityQuestionsScreen() {
     </View>
   );
 
-  const renderBottomSheet = (ref: React.RefObject<BottomSheetMethods | null>, onSelect: (val: string) => void) => (
+  const renderBottomSheet = (ref: React.RefObject<BottomSheetMethods | null>, field: 'securityQuestion1' | 'securityQuestion2', idField: 'securityQuestion1Id' | 'securityQuestion2Id') => (
     <BottomSheet
       ref={ref}
       snapPoints={['45%', '45%']}
       enableBackdrop={true}
-      backdropOpacity={0.7} // Darker backdrop as requested
+      backdropOpacity={0.7}
       backgroundColor="#FFF"
       borderRadius={32}
     >
       <ScrollView style={styles.optionsList}>
         <ThemedText style={styles.optionsHeader}>Select a security question</ThemedText>
-        {SECURITY_QUESTIONS.map((q, idx) => (
+        {questions.map((q) => (
           <TouchableOpacity 
-            key={idx} 
+            key={q.id} 
             style={styles.optionItem}
             onPress={() => {
-              onSelect(q);
+              handleSelectQuestion(q.id, q.question, field, idField);
               ref.current?.close();
             }}
           >
-            <ThemedText style={styles.optionText}>{q}</ThemedText>
+            <ThemedText style={styles.optionText}>{q.question}</ThemedText>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -131,7 +145,6 @@ export default function SecurityQuestionsScreen() {
             {renderDropdownTrigger(
               "Security Question 1", 
               form.securityQuestion1, 
-              (val) => setFormField('securityQuestion1', val), 
               bottomSheetRef1
             )}
             
@@ -145,7 +158,6 @@ export default function SecurityQuestionsScreen() {
             {renderDropdownTrigger(
               "Security Question 2", 
               form.securityQuestion2, 
-              (val) => setFormField('securityQuestion2', val), 
               bottomSheetRef2
             )}
 
@@ -161,7 +173,7 @@ export default function SecurityQuestionsScreen() {
             <Button
               onPress={handleProceed}
               isLoading={isLoading}
-              disabled={!isFormValid}
+              disabled={!isFormValid || isLoading}
               width={SCREEN_WIDTH - 48}
               height={56}
               backgroundColor={isFormValid ? "#FF7A00" : "#F3F3F3"}
@@ -174,8 +186,8 @@ export default function SecurityQuestionsScreen() {
       </SafeAreaView>
 
       {/* Render BottomSheets at root level */}
-      {renderBottomSheet(bottomSheetRef1, (val) => setFormField('securityQuestion1', val))}
-      {renderBottomSheet(bottomSheetRef2, (val) => setFormField('securityQuestion2', val))}
+      {renderBottomSheet(bottomSheetRef1, 'securityQuestion1', 'securityQuestion1Id')}
+      {renderBottomSheet(bottomSheetRef2, 'securityQuestion2', 'securityQuestion2Id')}
 
       {/* Congratulations Modal */}
       {showCongratulations && (

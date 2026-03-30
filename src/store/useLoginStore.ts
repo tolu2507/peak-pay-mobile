@@ -25,13 +25,17 @@ export const useLoginStore = create<LoginState>((set, get) => ({
     const { email, password } = get();
     set({ isLoading: true, error: null });
     try {
-      const response = await AuthService.login({ email, password });
-      // response structure depends on the backend, assuming { access: string, user: any } or similar
+      const response = await AuthService.login({
+        email_phonenumber: email,
+        password,
+        email,
+      });
       const token = response.access || response.token;
+      const refreshToken = response.refresh;
       const user = response.user || { email };
       
       if (token) {
-        useAuthStore.getState().setAuth(token, user);
+        useAuthStore.getState().setAuth(token, user, refreshToken);
       } else {
         throw new Error('No token received');
       }

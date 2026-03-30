@@ -9,13 +9,27 @@ import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { OtpInput } from '@/shared/ui/base/otp-input';
 import { Ionicons } from '@expo/vector-icons';
 import { Toast } from '@/shared/ui/molecules/Toast';
+import { useSignupStore } from '@/store/useSignupStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const maskEmail = (email: string) => {
+  if (!email) return '***@***.com';
+  const [user, domain] = email.split('@');
+  const masked = user.slice(0, 2) + '****';
+  return `${masked}@${domain}`;
+};
+
+const maskPhone = (phone: string) => {
+  if (!phone || phone.length < 4) return '****';
+  return phone.slice(0, 4) + '****' + phone.slice(-3);
+};
+
 export default function VerifyScreen() {
   const router = useRouter();
+  const { form, isLoading, verifyOtp, sendOtp } = useSignupStore();
   const [otp, setOtp] = useState('');
-  const [timer, setTimer] = useState(116); // 01:56 in seconds
+  const [timer, setTimer] = useState(116);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -33,11 +47,28 @@ export default function VerifyScreen() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (otp.length === 6) {
-      router.push('/(auth)/password');
+      try {
+        await verifyOtp(otp);
+        Toast.show('Email verified successfully!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        router.push('/(auth)/password');
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Invalid OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      }
     } else {
       Toast.show('Please enter the 6-digit code', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+    }
+  };
+
+  const handleResend = async () => {
+    if (timer > 0) return;
+    try {
+      await sendOtp();
+      setTimer(116);
+      Toast.show('OTP resent successfully!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+    } catch (error: any) {
+      Toast.show(error.response?.data?.message || 'Failed to resend OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
     }
   };
 
@@ -48,7 +79,7 @@ export default function VerifyScreen() {
           <View style={styles.header}>
             <View style={styles.titleContainer}>
               <ThemedText type="title" style={styles.title}>
-                Verify your phone number
+                Verify your email
               </ThemedText>
             </View>
             <CircularProgress
@@ -60,7 +91,7 @@ export default function VerifyScreen() {
           </View>
 
           <ThemedText style={styles.description}>
-            We have just sent a 6-digit code to your phone number <ThemedText style={styles.boldText}>+234809****892</ThemedText> and email address <ThemedText style={styles.boldText}>ad******com</ThemedText>. Enter it here.
+            We have just sent a 6-digit code to your email address <ThemedText style={styles.boldText}>{maskEmail(form.email)}</ThemedText>. Enter it here.
           </ThemedText>
 
           <View style={styles.otpContainer}>
@@ -85,17 +116,10 @@ export default function VerifyScreen() {
           </View>
 
           <View style={styles.resendOptions}>
-            <TouchableOpacity style={styles.resendButton}>
-              <Ionicons name="refresh-outline" size={24} color="#666" />
+            <TouchableOpacity style={styles.resendButton} onPress={handleResend} disabled={timer > 0}>
+              <Ionicons name="refresh-outline" size={24} color={timer > 0 ? '#CCC' : '#666'} />
               <ThemedText style={styles.resendLabel}>
-                Didn’t get a code? <ThemedText style={styles.linkText}>Resend OTP via SMS</ThemedText>
-              </ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.resendButton}>
-              <Ionicons name="refresh-outline" size={24} color="#666" />
-              <ThemedText style={styles.resendLabel}>
-                Having trouble with SMS? <ThemedText style={styles.linkText}>Resend OTP via email</ThemedText>
+                Didn't get a code? <ThemedText style={[styles.linkText, timer > 0 && { color: '#CCC' }]}>Resend OTP</ThemedText>
               </ThemedText>
             </TouchableOpacity>
           </View>
@@ -103,7 +127,8 @@ export default function VerifyScreen() {
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              disabled={otp.length !== 6}
+              isLoading={isLoading}
+              disabled={otp.length !== 6 || isLoading}
               width={SCREEN_WIDTH - 48}
               height={56}
               backgroundColor={otp.length === 6 ? "#FF7A00" : "#F3F3F3"}

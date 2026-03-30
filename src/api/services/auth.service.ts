@@ -1,21 +1,24 @@
 import apiClient from '../client';
 
 export interface RegisterRequest {
-  email: string;
   first_name: string;
   last_name: string;
-  password?: string;
+  email: string;
   phone_number: string;
   terms: boolean;
-  security_question_1: string;
-  security_answer_1: string;
-  security_question_2: string;
-  security_answer_2: string;
+  privacy: boolean;
+  password: string;
+  referral_code?: string;
 }
 
 export interface LoginRequest {
+  email_phonenumber: string;
+  password: string;
   email: string;
-  password?: string;
+}
+
+export interface LogoutRequest {
+  refresh: string;
 }
 
 class AuthService {
@@ -25,7 +28,12 @@ class AuthService {
   }
 
   async login(data: LoginRequest) {
-    const response = await apiClient.post('/auth/token/', data);
+    const response = await apiClient.post('/auth/login/', data);
+    return response.data;
+  }
+
+  async logout(data: LogoutRequest) {
+    const response = await apiClient.post('/auth/logout/', data);
     return response.data;
   }
 

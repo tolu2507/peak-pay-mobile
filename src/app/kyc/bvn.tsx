@@ -15,14 +15,18 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function BVNScreen() {
   const router = useRouter();
-  const { bvn, setBvn, nextStep } = useKYCStore();
+  const { bvn, setBvn, nextStep, verifyBvn, isLoading } = useKYCStore();
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (bvn.length === 11) {
-      nextStep();
-      Toast.show('BVN details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      // Navigate to next KYC step when implemented
-      router.push('/kyc/liveness-intro');
+      try {
+        await verifyBvn();
+        nextStep();
+        Toast.show('BVN verified successfully', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        router.push('/kyc/liveness-intro');
+      } catch (error) {
+        // Error handled by store/apiClient
+      }
     } else {
       Toast.show('Please enter a valid 11-digit BVN', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
     }
@@ -78,7 +82,8 @@ export default function BVNScreen() {
         <View style={styles.footer}>
           <Button
             onPress={handleProceed}
-            disabled={bvn.length !== 11}
+            isLoading={isLoading}
+            disabled={bvn.length !== 11 || isLoading}
             width={SCREEN_WIDTH - 48}
             height={56}
             backgroundColor={bvn.length === 11 ? "#FF7A00" : "#F3F3F3"}

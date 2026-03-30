@@ -11,6 +11,7 @@ import { useKYCStore } from '@/store/useKYCStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
+import OtpService from '@/api/services/otp.service';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,6 +30,8 @@ export default function EmploymentScreen() {
   const [activeDropdown, setActiveDropdown] = useState<keyof typeof OPTIONS | null>(null);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otp, setOtp] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
   const otpSheetRef = useRef<BottomSheetMethods>(null);
@@ -54,9 +57,23 @@ export default function EmploymentScreen() {
     return false;
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (isSalaryEarner) {
-      otpSheetRef.current?.expand();
+      if (!employment.workEmail) return;
+      setIsSending(true);
+      try {
+        await OtpService.sendOtp({
+          otp_type: 'email',
+          otp_action_type: 'kyc',
+          identifier: employment.workEmail.trim(),
+        });
+        otpSheetRef.current?.expand();
+        Toast.show('OTP sent to your email', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Failed to send OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      } finally {
+        setIsSending(false);
+      }
     } else {
       nextStep();
       Toast.show('Employment details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
@@ -64,14 +81,24 @@ export default function EmploymentScreen() {
     }
   };
 
-  const handleOtpComplete = (code: string) => {
+  const handleOtpComplete = async (code: string) => {
     setOtp(code);
-    setTimeout(() => {
+    setIsVerifying(true);
+    try {
+      await OtpService.verifyOtp({
+        identifier: employment.workEmail.trim(),
+        otp_code: code,
+      });
       otpSheetRef.current?.close();
       Toast.show('Employment verified!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
       nextStep();
       router.push('/kyc/pep-details');
-    }, 1000);
+    } catch (error: any) {
+      Toast.show(error.response?.data?.message || 'Invalid OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      setOtp(''); // Optionally reset OTP on failure
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const openDropdown = (key: keyof typeof OPTIONS) => {
@@ -202,13 +229,15 @@ export default function EmploymentScreen() {
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              disabled={!isFormValid()}
+              disabled={!isFormValid() || isSending}
               width={SCREEN_WIDTH - 48}
               height={56}
-              backgroundColor={isFormValid() ? "#FF7A00" : "#F3F3F3"}
+              backgroundColor={isFormValid() && !isSending ? "#FF7A00" : "#F3F3F3"}
               borderRadius={16}
             >
-              <ThemedText style={[styles.buttonText, { color: isFormValid() ? "#FFF" : "#AAA" }]}>Proceed</ThemedText>
+              <ThemedText style={[styles.buttonText, { color: isFormValid() && !isSending ? "#FFF" : "#AAA" }]}>
+                {isSending ? 'Sending OTP...' : 'Proceed'}
+              </ThemedText>
             </Button>
           </View>
       </SafeAreaView>

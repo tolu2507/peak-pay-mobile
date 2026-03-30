@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import KycService from '../api/services/kyc.service';
+import type { SmileIdConfig } from '../api/services/kyc.service';
 
 interface KYCState {
   currentStep: number;
@@ -35,6 +36,7 @@ interface KYCState {
   pin: string;
   confirmPin: string;
   isKYCComplete: boolean;
+  smileIdConfig: SmileIdConfig | null;
   isLoading: boolean;
   error: string | null;
   setBvn: (value: string) => void;
@@ -48,7 +50,7 @@ interface KYCState {
   nextStep: () => void;
   prevStep: () => void;
   resetKYC: () => void;
-  verifyBvn: () => Promise<void>;
+  verifyBvn: () => Promise<any>;
   submitKyc: () => Promise<void>;
   createTransactionPin: () => Promise<void>;
 }
@@ -87,6 +89,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
   pin: '',
   confirmPin: '',
   isKYCComplete: false,
+  smileIdConfig: null,
   isLoading: false,
   error: null,
   setBvn: (value) => set({ bvn: value }),
@@ -152,8 +155,12 @@ export const useKYCStore = create<KYCState>((set, get) => ({
     const { bvn } = get();
     set({ isLoading: true, error: null });
     try {
-      await KycService.verifyIdentity({ idType: 'BVN', idNumber: bvn });
-      set({ isBvnVerified: true });
+      const config = await KycService.verifySmileId({
+        verification_type: 'BVN',
+        type_value: bvn,
+      });
+      set({ isBvnVerified: true, smileIdConfig: config });
+      return config;
     } catch (error: any) {
       set({ error: error.response?.data?.message || 'BVN verification failed' });
       throw error;
@@ -166,7 +173,8 @@ export const useKYCStore = create<KYCState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       // Assuming a unified submission or sequential calls
-      await KycService.saveAddress({ ...nextOfKin, ...employment, ...pep, ...bank });
+      // TODO: Replace with actual KYC submission endpoint when available
+      console.log('KYC data to submit:', { nextOfKin, employment, pep, bank });
       // Further logic if needed
     } catch (error: any) {
       set({ error: error.response?.data?.message || 'KYC submission failed' });
@@ -179,7 +187,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
     const { pin } = get();
     set({ isLoading: true, error: null });
     try {
-      await KycService.createPin(pin);
+      await KycService.createTransactionPin(pin);
       set({ isKYCComplete: true });
     } catch (error: any) {
       set({ error: error.response?.data?.message || 'PIN creation failed' });

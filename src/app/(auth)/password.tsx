@@ -9,6 +9,7 @@ import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
 import { useSignupStore } from '@/store/useSignupStore';
 import { Ionicons } from '@expo/vector-icons';
+import { Toast } from '@/shared/ui/molecules/Toast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -22,7 +23,7 @@ const REQUIREMENT_CHECKS = [
 
 export default function PasswordScreen() {
   const router = useRouter();
-  const { form, setFormField } = useSignupStore();
+  const { form, setFormField, register, isLoading } = useSignupStore();
   const [isPassVisible, setIsPassVisible] = useState(false);
   const [isConfirmPassVisible, setIsConfirmPassVisible] = useState(false);
 
@@ -37,9 +38,15 @@ export default function PasswordScreen() {
   const isMatch = useMemo(() => form.confirmPassword === form.password && form.confirmPassword !== '', [form.password, form.confirmPassword]);
   const isFormValid = allMet && isMatch;
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (isFormValid) {
-      router.push('/(auth)/security-questions');
+      try {
+        await register();
+        Toast.show('Account created successfully!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        router.push('/(auth)/security-questions');
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Failed to create account', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      }
     }
   };
 
@@ -107,7 +114,8 @@ export default function PasswordScreen() {
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              disabled={!isFormValid}
+              isLoading={isLoading}
+              disabled={!isFormValid || isLoading}
               width={SCREEN_WIDTH - 48}
               height={56}
               backgroundColor={isFormValid ? "#FF7A00" : "#F3F3F3"}

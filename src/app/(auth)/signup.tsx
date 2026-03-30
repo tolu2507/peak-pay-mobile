@@ -9,6 +9,7 @@ import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { Checkbox } from '@/shared/ui/organisms/check-box';
 import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
 import { useSignupStore } from '@/store/useSignupStore';
+import { Toast } from '@/shared/ui/molecules/Toast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -18,9 +19,11 @@ export default function SignupScreen() {
     form,
     agreedTerms,
     agreedPrivacy,
+    isLoading,
     setFormField,
     setAgreedTerms,
-    setAgreedPrivacy
+    setAgreedPrivacy,
+    sendOtp
   } = useSignupStore();
 
   const isFormValid = useMemo(() => {
@@ -34,9 +37,15 @@ export default function SignupScreen() {
     );
   }, [form, agreedTerms, agreedPrivacy]);
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (isFormValid) {
-      router.push('/(auth)/verify');
+      try {
+        await sendOtp();
+        Toast.show('OTP sent to your email', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        router.push('/(auth)/verify');
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Failed to send OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      }
     }
   };
 
@@ -126,7 +135,8 @@ export default function SignupScreen() {
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              disabled={!isFormValid}
+              isLoading={isLoading}
+              disabled={!isFormValid || isLoading}
               width={SCREEN_WIDTH - 48}
               height={56}
               backgroundColor={isFormValid ? "#FF7A00" : "#F3F3F3"}
