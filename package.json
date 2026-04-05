@@ -58,6 +58,5 @@
     "@types/react": "~19.2.2",
     "typescript": "~5.9.2"
   },
-  "private": true,
-  "packageManager": "yarn@4.13.0"
+  "private": true
 }
