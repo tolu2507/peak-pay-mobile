@@ -13,7 +13,7 @@ export interface VerifyOtpRequest {
 
 class OtpService {
   async sendOtp(data: SendOtpRequest) {
-    const response = await apiClient.post('/otp/send-otp/', data);
+    const response = await apiClient.post('https://wreathlike-cesural-jewell.ngrok-free.dev/api/otp/send-otp/', data);
     return response.data;
   }
 
