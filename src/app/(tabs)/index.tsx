@@ -113,7 +113,7 @@ export default function HomeScreen() {
               <ThemedText style={[styles.adsTitle, { color: '#d1d10bff' }]}>Need instant loan? <ThemedText style={[styles.adsTitle, { maxWidth: "100%" }]}>Get it in minutes!</ThemedText></ThemedText>
             </View>
             <Image
-              source={require('@/assets/images/peakpay_logo.png')} // Reusing logo for now
+              source={require('@/assets/images/peakpay_logo.jpg')} // Reusing logo for now
               style={styles.adsIcon}
             />
           </View>

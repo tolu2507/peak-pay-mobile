@@ -28,7 +28,7 @@ export default function LoansScreen() {
           <View style={styles.emptyContent}>
             <View style={styles.illustrationContainer}>
               <Image 
-                source={require('@/assets/images/peakpay_logo.png')} // Reusing logo as placeholder for the loan illustration
+                source={require('@/assets/images/peakpay_logo.jpg')} // Reusing logo as placeholder for the loan illustration
                 style={styles.illustration}
                 resizeMode="contain"
               />
