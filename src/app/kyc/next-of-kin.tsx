@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import KycService from '@/api/services/kyc.service';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -33,13 +34,21 @@ export default function NextOfKinScreen() {
   const handleProceed = async () => {
     if (isFormValid) {
       setIsLoading(true);
-      // Simulate API call
-      setTimeout(() => {
-        setIsLoading(false);
+      try {
+        await KycService.createNextOfKin({
+          first_name: nextOfKin.firstName,
+          last_name: nextOfKin.lastName,
+          phone_number: nextOfKin.phone,
+          relationship: nextOfKin.relation,
+        });
         nextStep();
         Toast.show('Next of kin details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
         router.push('/kyc/employment');
-      }, 1500);
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Failed to save next of kin details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 

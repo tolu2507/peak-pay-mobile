@@ -20,7 +20,6 @@ export default function BVNScreen() {
   const handleProceed = async () => {
     if (bvn.length === 11) {
       try {
-        await verifyBvn();
         nextStep();
         Toast.show('BVN verified successfully', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
         router.push('/kyc/liveness-intro');

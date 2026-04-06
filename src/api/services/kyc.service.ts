@@ -64,7 +64,8 @@ export interface BankDetailsRequest {
 class KycService {
   async getSecurityQuestions(): Promise<SecurityQuestion[]> {
     const response = await apiClient.get('/kyc/security-questions-list/');
-    return response.data;
+    console.log(response.data.data)
+    return response.data.data;
   }
 
   async answerSecurityQuestions(data: AnswerSecurityQuestionsRequest) {
@@ -83,7 +84,9 @@ class KycService {
   }
 
   async verifySmileId(data: SmileIdVerificationRequest): Promise<SmileIdConfig> {
+    console.log({ data })
     const response = await apiClient.post('/kyc/smileid-verification/', data);
+    console.log(response.data)
     return response.data;
   }
 
@@ -94,6 +97,7 @@ class KycService {
   }
 
   async createNextOfKin(data: NextOfKinRequest) {
+    console.log({ data })
     const response = await apiClient.post('/kyc/next-of-kin/', data);
     return response.data;
   }

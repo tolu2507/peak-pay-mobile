@@ -8,9 +8,10 @@ import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/type
 import { useKYCStore } from '@/store/useKYCStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import KycService from '@/api/services/kyc.service';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -19,13 +20,23 @@ const PEP_OPTIONS = ["Yes, I am a PEP", "No, I am not a PEP", "Immediate family 
 export default function PepDetailsScreen() {
   const router = useRouter();
   const { pep, setPepField, nextStep } = useKYCStore();
+  const [isLoading, setIsLoading] = useState(false);
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (pep.isPep) {
-      nextStep();
-      Toast.show('PEP details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      router.push('/kyc/bank-details');
+      setIsLoading(true);
+      try {
+        const isPepBool = pep.isPep !== "No, I am not a PEP";
+        await KycService.createPepDetails({ is_pep: isPepBool });
+        nextStep();
+        Toast.show('PEP details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        router.push('/kyc/bank-details');
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Failed to save PEP details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 

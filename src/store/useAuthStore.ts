@@ -7,8 +7,10 @@ interface AuthState {
   token: string | null;
   refreshToken: string | null;
   user: any | null;
+  loanAmount: number;
   isAuthenticated: boolean;
-  setAuth: (token: string, user: any, refreshToken?: string) => void;
+  setAuth: (token: string, user: any, refreshToken?: string, loanAmount?: number) => void;
+  setLoanAmount: (amount: number) => void;
   logout: () => Promise<void>;
 }
 
@@ -18,13 +20,16 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       refreshToken: null,
       user: null,
+      loanAmount: 0,
       isAuthenticated: false,
-      setAuth: (token, user, refreshToken) => set({ 
+      setAuth: (token, user, refreshToken, loanAmount) => set({ 
         token, 
         user, 
         isAuthenticated: true,
         ...(refreshToken ? { refreshToken } : {}),
+        ...(loanAmount !== undefined ? { loanAmount } : {}),
       }),
+      setLoanAmount: (amount) => set({ loanAmount: amount }),
       logout: async () => {
         const { refreshToken } = get();
         try {

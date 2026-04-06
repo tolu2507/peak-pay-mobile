@@ -11,6 +11,7 @@ import { useKYCStore } from '@/store/useKYCStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
+import KycService from '@/api/services/kyc.service';
 import OtpService from '@/api/services/otp.service';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -89,12 +90,24 @@ export default function EmploymentScreen() {
         identifier: employment.workEmail.trim(),
         otp_code: code,
       });
+
+      // Submit employment details after OTP verification
+      await KycService.createEmploymentVerification({
+        employment_status: employment.status,
+        employer_name: employment.workPlace,
+        industry: employment.industry,
+        monthly_income: employment.monthlyIncome,
+        date_of_payroll: employment.payDay,
+        job_title: 'Employee', // Defaulting as UI doesn't have this field yet
+        company_location: employment.state,
+      });
+
       otpSheetRef.current?.close();
       Toast.show('Employment verified!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
       nextStep();
       router.push('/kyc/pep-details');
     } catch (error: any) {
-      Toast.show(error.response?.data?.message || 'Invalid OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      Toast.show(error.response?.data?.message || 'Verification failed', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
       setOtp(''); // Optionally reset OTP on failure
     } finally {
       setIsVerifying(false);

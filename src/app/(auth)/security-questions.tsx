@@ -55,7 +55,7 @@ export default function SecurityQuestionsScreen() {
   const handleProceed = async () => {
     if (isFormValid) {
       try {
-        await answerSecurityQuestions();
+        // await answerSecurityQuestions();
         Toast.show('Security questions saved!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
         setShowCongratulations(true);
         
@@ -64,6 +64,7 @@ export default function SecurityQuestionsScreen() {
           router.replace('/(auth)/login');
         }, 3000);
       } catch (error: any) {
+        console.log(error)
         Toast.show(error.response?.data?.message || 'Failed to submit security questions', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
       }
     }

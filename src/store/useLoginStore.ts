@@ -32,10 +32,11 @@ export const useLoginStore = create<LoginState>((set, get) => ({
       });
       const token = response.access || response.token;
       const refreshToken = response.refresh;
+      const loanAmount = response.loan_amount;
       const user = response.user || { email };
       
       if (token) {
-        useAuthStore.getState().setAuth(token, user, refreshToken);
+        useAuthStore.getState().setAuth(token, user, refreshToken, loanAmount);
       } else {
         throw new Error('No token received');
       }

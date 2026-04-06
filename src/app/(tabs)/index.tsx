@@ -8,10 +8,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Toast } from '@/shared/ui/molecules/Toast';
 import SegmentedControl from '@/shared/ui/organisms/segmented-control';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useKYCStore } from '@/store/useKYCStore';
 import { useLoanStore } from '@/store/useLoanStore';
 import { useSignupStore } from '@/store/useSignupStore';
-import { useState } from 'react';
+import userService, { UserResponse } from '@/api/services/user.service';
+import { useState, useEffect } from 'react';
 
 const FILTERS = ['All', 'Credit', 'Debit'] as const;
 
@@ -20,11 +22,27 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function HomeScreen() {
   const router = useRouter();
   const { form } = useSignupStore();
+  const { loanAmount, user: authUser } = useAuthStore();
   const { isKYCComplete } = useKYCStore();
   const { isApplied, appliedAmount, status } = useLoanStore();
   const [filter, setFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
+  const [profile, setProfile] = useState<UserResponse | null>(null);
 
-  const displayName = form.firstName && form.lastName ? `${form.firstName} ${form.lastName}` : 'Oluwasegun Adigun';
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await userService.getCurrentUser();
+        setProfile(data);
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const displayName = profile?.first_name 
+    ? `${profile.first_name} ${profile.last_name || ''}` 
+    : (form.firstName && form.lastName ? `${form.firstName} ${form.lastName}` : 'User');
 
   const transactions = [
     { id: '1', title: 'Card Funding', date: '24, Mar 2024', amount: '+₦5,000.00', type: 'credit' },
@@ -95,7 +113,7 @@ export default function HomeScreen() {
             <View style={styles.balanceCard}>
               <ThemedText style={styles.balanceLabel}>Eligible Loan Balance</ThemedText>
               <View style={styles.balanceRow}>
-                <ThemedText style={styles.balanceAmount}>₦ 10,000,000.00</ThemedText>
+                <ThemedText style={styles.balanceAmount}>₦ {loanAmount?.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</ThemedText>
                 <Ionicons name="eye-off-outline" size={20} color="#666" style={{ marginLeft: 8 }} />
               </View>
               <TouchableOpacity

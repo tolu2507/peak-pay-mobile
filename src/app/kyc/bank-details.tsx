@@ -14,6 +14,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import KycService from '@/api/services/kyc.service';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const BANKS = ["Access Bank", "First Bank", "GTBank", "Kuda Bank", "Zenith Bank", "UBA", "Stanbic IBTC"];
@@ -26,10 +28,11 @@ export default function BankDetailsScreen() {
 
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifiedName, setVerifiedName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const fullName = signupForm.firstName && signupForm.lastName ? `${signupForm.firstName} ${signupForm.lastName}` : 'Oluwasegun Adigun';
 
-  const isFormValid = bank.bankName && bank.accountNumber.length === 10 && bank.phone && verifiedName !== '';
+  const isFormValid = bank.bankName && bank.accountNumber.length === 10 && (signupForm.phone || bank.phone) && verifiedName !== '';
 
   const handleAccountNumberChange = (val: string) => {
     setBankField('accountNumber', val);
@@ -43,7 +46,7 @@ export default function BankDetailsScreen() {
   const verifyAccount = () => {
     setIsVerifying(true);
     setVerifiedName('');
-    // Simulate API call
+    // Simulate API call for account verification
     setTimeout(() => {
       setIsVerifying(false);
       setVerifiedName(fullName);
@@ -51,11 +54,24 @@ export default function BankDetailsScreen() {
     }, 2000);
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (isFormValid) {
-      nextStep();
-      Toast.show('Bank details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      router.push('/kyc/create-pin');
+      setIsLoading(true);
+      try {
+        await KycService.createBankDetails({
+          bank_name: bank.bankName,
+          account_number: bank.accountNumber,
+          account_name: verifiedName,
+          phone_number: signupForm.phone || bank.phone,
+        });
+        nextStep();
+        Toast.show('Bank details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        router.push('/kyc/create-pin');
+      } catch (error: any) {
+        Toast.show(error.response?.data?.message || 'Failed to save bank details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 

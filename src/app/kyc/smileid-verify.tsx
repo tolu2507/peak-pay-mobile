@@ -1,12 +1,10 @@
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { useKYCStore } from '@/store/useKYCStore';
 import { BiometricKYCParams, ConsentInformationParams, IdInfoParams, SmileIDBiometricKYCView } from '@smile_identity/react-native-expo';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Dimensions, StyleSheet } from 'react-native';
 
 // SmileID Expo SDK - uncomment after installing @smile_identity/react-native-expo
 // import { SmileIDBiometricKYCView } from '@smile_identity/react-native-expo';
@@ -15,7 +13,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SmileIdVerificationScreen() {
   const router = useRouter();
-  const { smileIdConfig, nextStep, bvn } = useKYCStore();
+  const { smileIdConfig, nextStep, bvn, verifyBvn } = useKYCStore();
   const [isComplete, setIsComplete] = useState(false);
 
   const idInfoParams: IdInfoParams = {
@@ -48,9 +46,10 @@ export default function SmileIdVerificationScreen() {
     idInfo: idInfoParams
   };
 
-  const handleSuccess = (result: any) => {
+  const handleSuccess = async (result: any) => {
     console.log('SmileID Biometric KYC Success:', result);
     setIsComplete(true);
+    await verifyBvn();
     nextStep();
     Toast.show('Identity verified successfully!', {
       type: 'success',
@@ -73,19 +72,19 @@ export default function SmileIdVerificationScreen() {
   };
 
   // If no config from backend, show error
-  if (!smileIdConfig) {
-    return (
-      <ThemedView style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.errorContainer}>
-            <ThemedText style={styles.errorText}>
-              Verification configuration not found. Please go back and try again.
-            </ThemedText>
-          </View>
-        </SafeAreaView>
-      </ThemedView>
-    );
-  }
+  // if (!smileIdConfig) {
+  //   return (
+  //     <ThemedView style={styles.container}>
+  //       <SafeAreaView style={styles.safeArea}>
+  //         <View style={styles.errorContainer}>
+  //           <ThemedText style={styles.errorText}>
+  //             Verification configuration not found. Please go back and try again.
+  //           </ThemedText>
+  //         </View>
+  //       </SafeAreaView>
+  //     </ThemedView>
+  //   );
+  // }
 
   return (
     <ThemedView style={styles.container}>

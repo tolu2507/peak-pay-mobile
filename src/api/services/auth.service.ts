@@ -24,21 +24,25 @@ export interface LogoutRequest {
 class AuthService {
   async register(data: RegisterRequest) {
     const response = await apiClient.post('/auth/create-user/', data);
+    console.log(response.data)
     return response.data;
   }
 
   async login(data: LoginRequest) {
     const response = await apiClient.post('/auth/login/', data);
+    console.log(response.data)
     return response.data;
   }
 
   async logout(data: LogoutRequest) {
     const response = await apiClient.post('/auth/logout/', data);
+    console.log(response.data)
     return response.data;
   }
 
   async getProfile() {
     const response = await apiClient.get('/auth/profile');
+    console.log(response.data)
     return response.data;
   }
 }
