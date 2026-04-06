@@ -17,7 +17,7 @@ export default function AuthOptionsScreen() {
   return (
     <ThemedView style={styles.container}>
       <ImageBackground
-        source={require('@/assets/images/onboarding_2.png')}
+        source={require('@/assets/images/onboarding_2.jpg')}
         style={styles.backgroundImage}
         resizeMode="cover"
       >

@@ -13,17 +13,17 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ONBOARDING_DATA = [
   {
-    image: require('@/assets/images/onboarding_1.png'),
+    image: require('@/assets/images/onboarding_1.jpg'),
     title: 'Welcome to Peakpay',
     subtitle: 'Control your money and control your world.',
   },
   {
-    image: require('@/assets/images/onboarding_3.png'),
+    image: require('@/assets/images/onboarding_3.jpg'),
     title: 'Smart Invoicing',
     subtitle: 'Generate professional invoices in seconds.',
   },
   {
-    image: require('@/assets/images/onboarding_2.png'),
+    image: require('@/assets/images/onboarding_2.jpg'),
     title: 'Global Payments',
     subtitle: 'Send and receive money across borders with ease.',
   },

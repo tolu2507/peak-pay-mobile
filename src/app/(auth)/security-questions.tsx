@@ -194,7 +194,7 @@ export default function SecurityQuestionsScreen() {
         <View style={styles.congratsOverlay}>
           <ThemedView style={styles.congratsContent}>
             <Image 
-              source={require('@/assets/images/congratulations_trophy.png')} 
+              source={require('@/assets/images/congratulations_trophy.jpg')} 
               style={styles.trophyImage}
               resizeMode="contain"
             />
