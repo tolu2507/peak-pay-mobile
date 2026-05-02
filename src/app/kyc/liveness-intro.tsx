@@ -20,7 +20,7 @@ export default function LivenessIntroScreen() {
   const router = useRouter();
 
   const handleProceed = () => {
-    router.push('/kyc/next-of-kin' as any);
+    router.push('/kyc/smileid-verify');
   };
 
   return (

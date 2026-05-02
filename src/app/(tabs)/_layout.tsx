@@ -38,13 +38,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Ionicons name="card-sharp" size={24} color={color} />,
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="analytics"
         options={{
           title: 'Analytics',
           tabBarIcon: ({ color }) => <Ionicons name="stats-chart-sharp" size={24} color={color} />,
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="profile"
         options={{

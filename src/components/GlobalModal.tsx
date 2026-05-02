@@ -12,6 +12,7 @@ export const GlobalModal = () => {
     isErrorModalVisible, 
     errorMessage, 
     hideError,
+    errorAction,
     isSuccessModalVisible,
     successMessage,
     hideSuccess
@@ -22,7 +23,28 @@ export const GlobalModal = () => {
   const isVisible = isErrorModalVisible || isSuccessModalVisible;
   const isError = isErrorModalVisible;
   const message = isError ? errorMessage : successMessage;
-  const hide = isError ? hideError : hideSuccess;
+  
+  const handleBottomSheetClose = () => {
+    // Only clean up state, do NOT execute action if closed by swiping or internally
+    if (isError) {
+      hideError();
+    } else {
+      hideSuccess();
+    }
+  };
+
+  const handleDismissClick = () => {
+    console.log('GlobalModal explicit dismiss clicked. isError:', isError, 'hasAction:', !!errorAction);
+    if (isError) {
+      hideError();
+      if (errorAction) {
+        console.log('Executing errorAction from explicit click...');
+        errorAction();
+      }
+    } else {
+      hideSuccess();
+    }
+  };
 
   useEffect(() => {
     if (isVisible) {
@@ -36,7 +58,7 @@ export const GlobalModal = () => {
     <BottomSheet
       ref={bottomSheetRef}
       snapPoints={['40%', '45%']}
-      onClose={hide}
+      onClose={handleBottomSheetClose}
       enableBackdrop={true}
       backgroundColor="#FFF"
     >
@@ -53,7 +75,7 @@ export const GlobalModal = () => {
           {message}
         </ThemedText>
         <Button 
-          onPress={hide}
+          onPress={handleDismissClick}
           width={350}
           height={50}
           backgroundColor={isError ? "#FF3B30" : "#FF7A00"}

@@ -23,6 +23,7 @@ export const useLoginStore = create<LoginState>((set, get) => ({
   resetForm: () => set({ email: '', password: '', isLoading: false, error: null }),
   login: async () => {
     const { email, password } = get();
+    console.log({ email, password })
     set({ isLoading: true, error: null });
     try {
       const response = await AuthService.login({
@@ -30,18 +31,20 @@ export const useLoginStore = create<LoginState>((set, get) => ({
         password,
         email,
       });
+      console.log({response})
       const token = response.access || response.token;
       const refreshToken = response.refresh;
       const loanAmount = response.loan_amount;
       const user = response.user || { email };
-      
+
       if (token) {
         useAuthStore.getState().setAuth(token, user, refreshToken, loanAmount);
       } else {
         throw new Error('No token received');
       }
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Login failed' });
+      console.log(error.response.data.errors[0].detail)
+      set({ error: error.response?.data?.errors[0].detail || 'Login failed' });
       throw error;
     } finally {
       set({ isLoading: false });

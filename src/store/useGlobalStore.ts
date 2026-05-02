@@ -7,7 +7,8 @@ interface GlobalState {
   isSuccessModalVisible: boolean;
   successMessage: string;
   isConnected: boolean;
-  showError: (message: string) => void;
+  errorAction?: () => void;
+  showError: (message: string, action?: () => void) => void;
   hideError: () => void;
   showSuccess: (message: string) => void;
   hideSuccess: () => void;
@@ -17,14 +18,15 @@ interface GlobalState {
 export const useGlobalStore = create<GlobalState>((set) => ({
   isErrorModalVisible: false,
   errorMessage: '',
+  errorAction: undefined,
   isSuccessModalVisible: false,
   successMessage: '',
   isConnected: true,
-  showError: (message) => {
-    set({ isErrorModalVisible: true, errorMessage: message });
+  showError: (message, action) => {
+    set({ isErrorModalVisible: true, errorMessage: message, errorAction: action });
     Toast.show(message, { type: 'error', position: "top", backgroundColor: "#FF3B30" });
   },
-  hideError: () => set({ isErrorModalVisible: false, errorMessage: '' }),
+  hideError: () => set({ isErrorModalVisible: false, errorMessage: '', errorAction: undefined }),
   showSuccess: (message) => {
     set({ isSuccessModalVisible: true, successMessage: message });
     Toast.show(message, { type: 'success', position: "top", backgroundColor: "#1E9F85" });

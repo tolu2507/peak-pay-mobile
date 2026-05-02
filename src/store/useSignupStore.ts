@@ -88,7 +88,7 @@ export const useSignupStore = create<SignupState>((set, get) => ({
       console.log('response', response)
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to send OTP' });
+      set({ error: error.response?.data?.errors[0].detail || 'Failed to send OTP' });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -106,7 +106,7 @@ export const useSignupStore = create<SignupState>((set, get) => ({
       });
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'OTP verification failed' });
+      set({ error: error.response?.data?.errors[0].detail || 'OTP verification failed' });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -117,6 +117,7 @@ export const useSignupStore = create<SignupState>((set, get) => ({
   register: async () => {
     const { form, agreedTerms, agreedPrivacy } = get();
     set({ isLoading: true, error: null });
+    console.log({ form, agreedPrivacy, agreedTerms })
     try {
       const response = await AuthService.register({
         first_name: form.firstName,
@@ -130,7 +131,7 @@ export const useSignupStore = create<SignupState>((set, get) => ({
       });
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Registration failed' });
+      set({ error: error.response?.data?.errors[0].detail || 'Registration failed' });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -164,7 +165,7 @@ export const useSignupStore = create<SignupState>((set, get) => ({
       });
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to submit security questions' });
+      set({ error: error.response?.data?.errors[0].detail || 'Failed to submit security questions' });
       throw error;
     } finally {
       set({ isLoading: false });

@@ -162,7 +162,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
       set({ isBvnVerified: true, smileIdConfig: config });
       return config;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'BVN verification failed' });
+      set({ error: error.response?.data?.errors[0].detail || 'BVN verification failed' });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -177,7 +177,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
       console.log('KYC data to submit:', { nextOfKin, employment, pep, bank });
       // Further logic if needed
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'KYC submission failed' });
+      set({ error: error.response?.data?.errors[0].detail || 'KYC submission failed' });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -190,7 +190,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
       await KycService.createTransactionPin(pin);
       set({ isKYCComplete: true });
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'PIN creation failed' });
+      set({ error: error.response?.data?.errors[0].detail || 'PIN creation failed' });
       throw error;
     } finally {
       set({ isLoading: false });

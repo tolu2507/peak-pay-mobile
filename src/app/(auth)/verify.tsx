@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Dimensions, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Dimensions, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
@@ -27,9 +27,10 @@ const maskPhone = (phone: string) => {
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const { form, isLoading, verifyOtp, sendOtp } = useSignupStore();
+  const { form, isLoading, verifyOtp, sendOtp, register } = useSignupStore();
   const [otp, setOtp] = useState('');
   const [timer, setTimer] = useState(116);
+  const [showCongratulations, setShowCongratulations] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -52,9 +53,14 @@ export default function VerifyScreen() {
       try {
         await verifyOtp(otp);
         Toast.show('Email verified successfully!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-        router.push('/(auth)/password');
+        setShowCongratulations(true);
+        
+        setTimeout(() => {
+          setShowCongratulations(false);
+          router.replace('/(auth)/login');
+        }, 3000);
       } catch (error: any) {
-        Toast.show(error.response?.data?.message || 'Invalid OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+        Toast.show(error.response?.data?.message || 'Verification failed', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
       }
     } else {
       Toast.show('Please enter the 6-digit code', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
@@ -139,6 +145,24 @@ export default function VerifyScreen() {
           </View>
         </View>
       </SafeAreaView>
+
+      {showCongratulations && (
+        <View style={styles.congratsOverlay}>
+          <ThemedView style={styles.congratsContent}>
+            <Image 
+              source={require('@/assets/images/congratulations_trophy.jpg')} 
+              style={styles.trophyImage}
+              resizeMode="contain"
+            />
+            <ThemedText type="title" style={styles.congratsTitle}>
+              Welcome to Peakpay, {form.firstName} {form.lastName}!
+            </ThemedText>
+            <ThemedText style={styles.congratsSubtitle}>
+              Your account has been set up successfully.
+            </ThemedText>
+          </ThemedView>
+        </View>
+      )}
     </ThemedView>
   );
 }
@@ -221,5 +245,33 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  congratsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFF',
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  congratsContent: {
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+  },
+  trophyImage: {
+    width: 200,
+    height: 200,
+    marginBottom: 32,
+  },
+  congratsTitle: {
+    fontSize: 24,
+    textAlign: 'center',
+    color: '#000',
+    marginBottom: 12,
+  },
+  congratsSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
 });

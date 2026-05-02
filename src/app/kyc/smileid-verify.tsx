@@ -38,10 +38,10 @@ export default function SmileIdVerificationScreen() {
     showInstructions: true,
     skipApiSubmission: false,
     useStrictMode: false,
-    extraPartnerParams: {
-      'custom_param_1': 'value1',
-      'custom_param_2': 'value2'
-    },
+    // extraPartnerParams: {
+    //   'custom_param_1': 'value1',
+    //   'custom_param_2': 'value2'
+    // },
     consentInformation: consentInformationParams, // Optional consent information
     idInfo: idInfoParams
   };

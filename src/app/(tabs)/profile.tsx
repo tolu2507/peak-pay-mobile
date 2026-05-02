@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { Ionicons } from '@expo/vector-icons';
-import { useSignupStore } from '@/store/useSignupStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { Toast } from '@/shared/ui/molecules/Toast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -32,13 +32,20 @@ const SettingItem = ({ icon, label, onPress, color = '#000', showChevron = true 
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { form } = useSignupStore();
-  const displayName = form.firstName && form.lastName ? `${form.firstName} ${form.lastName}` : 'Oluwasegun Adigun';
-  const email = form.email || 'adigun.oluwasegun@example.com';
+  const { user, logout } = useAuthStore();
+  
+  const firstName = user?.first_name || user?.firstName || '';
+  const lastName = user?.last_name || user?.lastName || '';
+  const email = user?.email || '';
 
-  const handleLogout = () => {
+  const displayName = firstName || lastName ? `${firstName} ${lastName}`.trim() : 'Peakpay User';
+  const initial1 = firstName ? firstName[0].toUpperCase() : 'P';
+  const initial2 = lastName ? lastName[0].toUpperCase() : '';
+
+  const handleLogout = async () => {
+    await logout();
     Toast.show('Logged out successfully', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-    router.replace('/');
+    router.replace('/(auth)');
   };
 
   return (
@@ -52,7 +59,7 @@ export default function ProfileScreen() {
           {/* User Profile Card */}
           <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
-              <ThemedText style={styles.avatarText}>{form.firstName?.[0] || 'O'}{form.lastName?.[0] || 'A'}</ThemedText>
+              <ThemedText style={styles.avatarText}>{initial1}{initial2}</ThemedText>
             </View>
             <View style={styles.userInfo}>
               <ThemedText style={styles.userName}>{displayName}</ThemedText>
