@@ -13,8 +13,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 const config = new SmileConfig(
   '7980',              // Partner ID from Smile ID portal
   'SHfz36RcDFgkCHSI3i4YB+R+8BC/nVdoYJaNBCqk1RBXRGBj++oEv21GRtUd+/JfoflvBYSkt3iMImS0aUC0FRxLvJ0pJfSCGujdn3+UHlKIuerGJ6FF2IyToZpuPxR8AERUWeYosh3KN704/6n/tikoU6l0in45724abPp1jyM=',              // Authentication token
-  'https://prod-lambda-url.com',  // Production lambda URL
-  'https://test-lambda-url.com'   // Test lambda URL
+  'https://api.smileidentity.com/v1/',  // Production lambda URL
+  'https://testapi.smileidentity.com/v1/'   // Test lambda URL
 );
 
 export default function RootLayout() {
