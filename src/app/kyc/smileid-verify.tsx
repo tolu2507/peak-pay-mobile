@@ -1,10 +1,11 @@
+import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { useKYCStore } from '@/store/useKYCStore';
 import { BiometricKYCParams, ConsentInformationParams, IdInfoParams, SmileIDBiometricKYCView } from '@smile_identity/react-native-expo';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Dimensions, StyleSheet } from 'react-native';
+import { ActivityIndicator, Dimensions, StyleSheet, View } from 'react-native';
 
 // SmileID Expo SDK - uncomment after installing @smile_identity/react-native-expo
 // import { SmileIDBiometricKYCView } from '@smile_identity/react-native-expo';
@@ -15,6 +16,7 @@ export default function SmileIdVerificationScreen() {
   const router = useRouter();
   const { smileIdConfig, nextStep, bvn, verifyBvn } = useKYCStore();
   const [isComplete, setIsComplete] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const idInfoParams: IdInfoParams = {
     country: 'NG',
@@ -48,16 +50,41 @@ export default function SmileIdVerificationScreen() {
 
   const handleSuccess = async (result: any) => {
     console.log('SmileID Biometric KYC Success:', result);
-    setIsComplete(true);
-    await verifyBvn();
-    nextStep();
-    Toast.show('Identity verified successfully!', {
-      type: 'success',
-      position: 'top',
-      backgroundColor: '#1E9F85',
-    });
-    // Navigate to next-of-kin (skipping old camera step)
-    router.replace('/kyc/next-of-kin');
+    setIsVerifying(true);
+    
+    try {
+      const smileJobId = result.jobId;
+
+      // TODO: Replace with the actual endpoint from your backend once ready
+      // await axios.post('https://your-api.com/kyc/verify-job', {
+      //   jobId: smileJobId,
+      //   bvn: bvn
+      // });
+      
+      // For now, simulating the wait...
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      setIsComplete(true);
+      await verifyBvn();
+      nextStep();
+      
+      Toast.show('Identity verified successfully!', {
+        type: 'success',
+        position: 'top',
+        backgroundColor: '#1E9F85',
+      });
+      // Navigate to next-of-kin (skipping old camera step)
+      router.replace('/kyc/next-of-kin');
+    } catch (error) {
+      console.error('Backend Verification Error:', error);
+      Toast.show('Backend verification failed. Please try again.', {
+        type: 'error',
+        position: 'top',
+        backgroundColor: '#FF3B30',
+      });
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleError = (error: any) => {
@@ -103,16 +130,25 @@ export default function SmileIdVerificationScreen() {
       */}
 
 
-      <SmileIDBiometricKYCView
-        style={styles.smileIdView}
-        params={biometricKYCParams}
-        onResult={(event) => {
-          handleSuccess(event.nativeEvent.result);
-        }}
-        onError={(event) => {
-          handleError(event.nativeEvent.error);
-        }}
-      />
+      {isVerifying ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E9F85" />
+          <ThemedText style={styles.loadingText}>
+            Verifying your identity...
+          </ThemedText>
+        </View>
+      ) : (
+        <SmileIDBiometricKYCView
+          style={styles.smileIdView}
+          params={biometricKYCParams}
+          onResult={(event) => {
+            handleSuccess(event.nativeEvent.result);
+          }}
+          onError={(event) => {
+            handleError(event.nativeEvent.error);
+          }}
+        />
+      )}
 
 
       {/* Placeholder while SDK is not installed - remove this once SmileID is working */}
@@ -143,6 +179,18 @@ const styles = StyleSheet.create({
   smileIdView: {
     width: '100%',
     height: '100%',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,
