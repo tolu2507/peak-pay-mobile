@@ -5,6 +5,7 @@ import type { SmileIdConfig } from '../api/services/kyc.service';
 interface KYCState {
   currentStep: number;
   bvn: string;
+  nin: string;
   isBvnVerified: boolean;
   nextOfKin: {
     firstName: string;
@@ -40,6 +41,7 @@ interface KYCState {
   isLoading: boolean;
   error: string | null;
   setBvn: (value: string) => void;
+  setNin: (value: string) => void;
   setNextOfKinField: (field: keyof KYCState['nextOfKin'], value: string) => void;
   setEmploymentField: (field: keyof KYCState['employment'], value: any) => void;
   setPepField: (field: keyof KYCState['pep'], value: string) => void;
@@ -51,6 +53,7 @@ interface KYCState {
   prevStep: () => void;
   resetKYC: () => void;
   verifyBvn: () => Promise<any>;
+  verifyNin: () => Promise<void>;
   submitKyc: () => Promise<void>;
   createTransactionPin: () => Promise<void>;
 }
@@ -58,6 +61,7 @@ interface KYCState {
 export const useKYCStore = create<KYCState>((set, get) => ({
   currentStep: 1,
   bvn: '',
+  nin: '',
   isBvnVerified: false,
   nextOfKin: {
     firstName: '',
@@ -93,6 +97,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
   isLoading: false,
   error: null,
   setBvn: (value) => set({ bvn: value }),
+  setNin: (value) => set({ nin: value }),
   setNextOfKinField: (field, value) => 
     set((state) => ({ 
       nextOfKin: { ...state.nextOfKin, [field]: value } 
@@ -117,6 +122,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
   resetKYC: () => set({ 
     currentStep: 1, 
     bvn: '', 
+    nin: '',
     isBvnVerified: false,
     nextOfKin: {
       firstName: '',
@@ -163,6 +169,21 @@ export const useKYCStore = create<KYCState>((set, get) => ({
       return config;
     } catch (error: any) {
       set({ error: error.response?.data?.errors[0].detail || 'BVN verification failed' });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  verifyNin: async () => {
+    const { nin } = get();
+    set({ isLoading: true, error: null });
+    try {
+      // TODO: Replace with actual Smile ID Enhanced KYC / Basic KYC for NIN
+      // For now, simulating the wait...
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // If success, you would set some state or just let the caller proceed
+    } catch (error: any) {
+      set({ error: error?.response?.data?.errors?.[0]?.detail || 'NIN verification failed' });
       throw error;
     } finally {
       set({ isLoading: false });

@@ -39,9 +39,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     const inAuthGroup = segments[0] === '(auth)';
+    const isPublicRoute = inAuthGroup || (segments[0] as string) === 'legal';
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // Redirect to login if not authenticated and not in auth group
+    if (!isAuthenticated && !isPublicRoute) {
+      // Redirect to login if not authenticated and not in auth/public route
       router.replace('/(auth)');
     } else if (isAuthenticated && inAuthGroup) {
       // Redirect to tabs if authenticated and in auth group
@@ -56,6 +57,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="legal" options={{ presentation: 'modal' }} />
           </Stack>
           <GlobalModal />
         </ThemeProvider>

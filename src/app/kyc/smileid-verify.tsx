@@ -73,8 +73,8 @@ export default function SmileIdVerificationScreen() {
         position: 'top',
         backgroundColor: '#1E9F85',
       });
-      // Navigate to next-of-kin (skipping old camera step)
-      router.replace('/kyc/next-of-kin');
+      // Navigate to NIN textual verification step
+      router.replace('/kyc/nin' as any);
     } catch (error) {
       console.error('Backend Verification Error:', error);
       Toast.show('Backend verification failed. Please try again.', {

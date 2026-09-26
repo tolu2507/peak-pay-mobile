@@ -153,7 +153,7 @@ export default function SignupScreen() {
             >
               <Checkbox showBorder={true} checked={agreedTerms} size={30} checkmarkColor="#FF7A00" />
               <ThemedText style={styles.checkboxText}>
-                I have read and agree to Peakpay’s <ThemedText style={styles.linkText}>Terms and Conditions</ThemedText>
+                I have read and agree to Peakpay’s <ThemedText style={styles.linkText} onPress={(e) => { e.stopPropagation(); router.push('/legal?url=https://www.mypeakpay.com/privacy&title=Terms%20and%20Conditions'); }}>Terms and Conditions</ThemedText>
               </ThemedText>
             </TouchableOpacity>
 
@@ -164,7 +164,7 @@ export default function SignupScreen() {
             >
               <Checkbox showBorder={true} checked={agreedPrivacy} size={30} checkmarkColor="#FF7A00" />
               <ThemedText style={styles.checkboxText}>
-                I consent to Peakpay’s <ThemedText style={styles.linkText}>Privacy Policy</ThemedText>
+                I consent to Peakpay’s <ThemedText style={styles.linkText} onPress={(e) => { e.stopPropagation(); router.push('/legal?url=https://www.mypeakpay.com/privacy&title=Privacy%20Policy'); }}>Privacy Policy</ThemedText>
               </ThemedText>
             </TouchableOpacity>
           </View>

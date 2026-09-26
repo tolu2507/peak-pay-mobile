@@ -7,6 +7,7 @@ export default function KYCLayout() {
       <Stack.Screen name="bvn" />
       <Stack.Screen name="liveness-intro" />
       <Stack.Screen name="smileid-verify" />
+      <Stack.Screen name="nin" />
       <Stack.Screen name="camera" />
       <Stack.Screen name="next-of-kin" />
       <Stack.Screen name="employment" />
