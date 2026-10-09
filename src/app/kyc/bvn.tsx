@@ -15,17 +15,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function BVNScreen() {
   const router = useRouter();
-  const { bvn, setBvn, nextStep, verifyBvn, isLoading } = useKYCStore();
+  const { bvn, setBvn, isLoading } = useKYCStore();
 
-  const handleProceed = async () => {
-    if (bvn.length === 11) {
-      try {
-        nextStep();
-        Toast.show('BVN verified successfully', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-        router.push('/kyc/liveness-intro');
-      } catch (error) {
-        // Error handled by store/apiClient
-      }
+  // Like the web, the BVN is verified together with the selfie on the next
+  // screens (biometric check against the BVN photo), not on its own.
+  const handleProceed = () => {
+    if (/^\d{11}$/.test(bvn)) {
+      router.push('/kyc/liveness-intro');
     } else {
       Toast.show('Please enter a valid 11-digit BVN', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
     }

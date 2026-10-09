@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, Dimensions, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
@@ -8,13 +8,18 @@ import { Button } from '@/shared/ui/base/button';
 import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { Checkbox } from '@/shared/ui/organisms/check-box';
 import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
+import { useLoginStore } from '@/store/useLoginStore';
 import { useSignupStore } from '@/store/useSignupStore';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
 import { Ionicons } from '@expo/vector-icons';
+import { Shadows } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Same choices as the web signup.
+const HEAR_ABOUT_OPTIONS = ['Friend', 'Social Media', 'Google', 'Other'];
 
 const REQUIREMENT_CHECKS = [
   { id: 'length', text: 'Must contain at least 8 characters', regex: /.{8,}/ },
@@ -42,6 +47,13 @@ export default function SignupScreen() {
   const [currentStep, setCurrentStep] = useState(1);
 
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
+  const hearSheetRef = useRef<BottomSheetMethods>(null);
+
+  // Invite links open as peakpay://signup?ref=CODE.
+  const { ref } = useLocalSearchParams<{ ref?: string }>();
+  useEffect(() => {
+    if (typeof ref === 'string' && ref.trim()) setFormField('referralCode', ref.trim());
+  }, [ref, setFormField]);
 
   const isDetailsValid = useMemo(() => {
     return (
@@ -49,10 +61,11 @@ export default function SignupScreen() {
       form.lastName.trim() !== '' &&
       form.phone.trim() !== '' &&
       form.email.trim() !== '' &&
+      form.howDidYouHear !== '' &&
       agreedTerms &&
       agreedPrivacy
     );
-  }, [form.firstName, form.lastName, form.phone, form.email, agreedTerms, agreedPrivacy]);
+  }, [form.firstName, form.lastName, form.phone, form.email, form.howDidYouHear, agreedTerms, agreedPrivacy]);
 
   const requirements = useMemo(() => {
     return REQUIREMENT_CHECKS.map(req => ({
@@ -75,13 +88,22 @@ export default function SignupScreen() {
   const handleCreateAccount = async () => {
     if (isDetailsValid && isPasswordValid) {
       try {
-        await useSignupStore.getState().register();
+        const res = await register();
         bottomSheetRef.current?.close();
-        Toast.show('Account created, OTP sent to your email', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        if (res?.alreadyVerified) {
+          // An account with this email exists and is verified: log in instead.
+          const login = useLoginStore.getState();
+          login.setEmail(form.email);
+          login.setNotice('An account with this email already exists. Please log in.');
+          router.replace('/(auth)/login');
+          return;
+        }
+        // New and existing-unverified users both get an email OTP.
+        Toast.show('OTP sent to your email', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
         router.push('/(auth)/verify');
       } catch (error: any) {
+        // The API client already shows the server's message.
         console.log(error);
-        Toast.show(error.response?.data?.message || 'Failed to create account', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
       }
     }
   };
@@ -118,6 +140,14 @@ export default function SignupScreen() {
             />
 
             <FloatingLabelInput
+              label="Middle Name (optional)"
+              placeholder="e.g Tunde"
+              value={form.middleName}
+              onChangeText={(text) => setFormField('middleName', text)}
+              icon="person-outline"
+            />
+
+            <FloatingLabelInput
               label="Last Name"
               placeholder="e.g Adesanya"
               value={form.lastName}
@@ -142,6 +172,29 @@ export default function SignupScreen() {
               value={form.email}
               onChangeText={(text) => setFormField('email', text)}
               icon="mail-outline"
+            />
+
+            <View>
+              <ThemedText style={styles.fieldLabel}>How did you hear about us?</ThemedText>
+              <TouchableOpacity
+                style={styles.dropdownTrigger}
+                onPress={() => hearSheetRef.current?.expand()}
+                activeOpacity={0.7}
+              >
+                <ThemedText style={[styles.dropdownValue, !form.howDidYouHear && { color: '#AAA' }]}>
+                  {form.howDidYouHear || 'Select an option'}
+                </ThemedText>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <FloatingLabelInput
+              label="Referral Code (optional)"
+              placeholder="e.g 123456"
+              autoCapitalize="characters"
+              value={form.referralCode}
+              onChangeText={(text) => setFormField('referralCode', text)}
+              icon="gift-outline"
             />
           </View>
 
@@ -251,6 +304,31 @@ export default function SignupScreen() {
           </View>
         </ScrollView>
       </BottomSheet>
+
+      <BottomSheet
+        ref={hearSheetRef}
+        snapPoints={['40%', '40%']}
+        enableBackdrop={true}
+        backdropOpacity={0.7}
+        backgroundColor="#FFF"
+        borderRadius={32}
+      >
+        <ScrollView style={styles.bottomSheetScroll}>
+          <ThemedText style={styles.bottomSheetTitle}>How did you hear about us?</ThemedText>
+          {HEAR_ABOUT_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option}
+              style={styles.optionItem}
+              onPress={() => {
+                setFormField('howDidYouHear', option);
+                hearSheetRef.current?.close();
+              }}
+            >
+              <ThemedText style={styles.optionText}>{option}</ThemedText>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </BottomSheet>
     </ThemedView>
   );
 }
@@ -348,6 +426,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     marginLeft: 8,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    borderRadius: 12,
+    height: 56,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFF',
+    ...Shadows.input,
+  },
+  dropdownValue: {
+    fontSize: 14,
+    color: '#000',
+  },
+  optionItem: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  optionText: {
+    fontSize: 16,
+    color: '#333',
   },
   bottomSheetFooter: {
     marginTop: 32,

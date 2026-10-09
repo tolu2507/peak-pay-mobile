@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 export default function KYCLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="phone" />
       <Stack.Screen name="bvn" />
       <Stack.Screen name="liveness-intro" />
       <Stack.Screen name="smileid-verify" />

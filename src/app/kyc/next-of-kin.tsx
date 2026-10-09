@@ -9,45 +9,59 @@ import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/type
 import { useKYCStore } from '@/store/useKYCStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import KycService from '@/api/services/kyc.service';
+import { routeAfterKycStep } from '@/constants/kyc-routes';
+import { Shadows } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const RELATIONS = ["Father", "Mother", "Brother", "Sister", "Spouse", "Guardian", "Friend"];
+// Values the backend accepts (same list as the web).
+const RELATIONS = [
+  { value: "spouse", label: "Spouse" },
+  { value: "father", label: "Father" },
+  { value: "mother", label: "Mother" },
+  { value: "son", label: "Son" },
+  { value: "daughter", label: "Daughter" },
+  { value: "brother", label: "Brother" },
+  { value: "sister", label: "Sister" },
+  { value: "uncle", label: "Uncle" },
+  { value: "aunt", label: "Aunt" },
+  { value: "cousin", label: "Cousin" },
+  { value: "guardian", label: "Guardian" },
+  { value: "friend", label: "Friend" },
+  { value: "other", label: "Other" },
+];
+
+const relationLabel = (value: string) =>
+  RELATIONS.find((r) => r.value === value.toLowerCase())?.label ?? value;
 
 export default function NextOfKinScreen() {
   const router = useRouter();
-  const { nextOfKin, setNextOfKinField, nextStep } = useKYCStore();
-  const [isLoading, setIsLoading] = useState(false);
+  const { nextOfKin, setNextOfKinField, loadNextOfKin, saveNextOfKin, isLoading } = useKYCStore();
 
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
 
+  // Pre-fill a saved next of kin so it's updated rather than duplicated.
+  useEffect(() => {
+    void loadNextOfKin();
+  }, [loadNextOfKin]);
+
   const isFormValid =
-    nextOfKin.firstName !== '' &&
-    nextOfKin.lastName !== '' &&
-    nextOfKin.phone !== '' &&
-    nextOfKin.relation !== '';
+    nextOfKin.firstName.trim() !== '' &&
+    nextOfKin.lastName.trim() !== '' &&
+    nextOfKin.phone.trim() !== '' &&
+    nextOfKin.relation.trim() !== '';
 
   const handleProceed = async () => {
     if (isFormValid) {
-      setIsLoading(true);
       try {
-        await KycService.createNextOfKin({
-          first_name: nextOfKin.firstName,
-          last_name: nextOfKin.lastName,
-          phone_number: nextOfKin.phone,
-          relationship: nextOfKin.relation,
-        });
-        nextStep();
+        await saveNextOfKin();
         Toast.show('Next of kin details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-        router.push('/kyc/employment');
+        router.push(routeAfterKycStep('nextOfKin') as any);
       } catch (error: any) {
-        Toast.show(error.response?.data?.message || 'Failed to save next of kin details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
-      } finally {
-        setIsLoading(false);
+        Toast.show(useKYCStore.getState().error || 'Failed to save next of kin details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
       }
     }
   };
@@ -61,7 +75,7 @@ export default function NextOfKinScreen() {
         activeOpacity={0.7}
       >
         <ThemedText style={[styles.dropdownValue, !value && { color: '#AAA' }]}>
-          {value || 'Select an option'}
+          {value ? relationLabel(value) : 'Select an option'}
         </ThemedText>
         <Ionicons name="chevron-down" size={20} color="#666" />
       </TouchableOpacity>
@@ -149,16 +163,16 @@ export default function NextOfKinScreen() {
       >
         <ScrollView style={styles.optionsList}>
           <ThemedText style={styles.optionsHeader}>Select relation</ThemedText>
-          {RELATIONS.map((r, idx) => (
+          {RELATIONS.map((r) => (
             <TouchableOpacity
-              key={idx}
+              key={r.value}
               style={styles.optionItem}
               onPress={() => {
-                setNextOfKinField('relation', r);
+                setNextOfKinField('relation', r.value);
                 bottomSheetRef.current?.close();
               }}
             >
-              <ThemedText style={styles.optionText}>{r}</ThemedText>
+              <ThemedText style={styles.optionText}>{r.label}</ThemedText>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -233,6 +247,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FFF',
+    ...Shadows.input,
   },
   dropdownValue: {
     fontSize: 14,

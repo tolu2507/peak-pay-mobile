@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthService from '../api/services/auth.service';
 import type { SecurityQuestion } from '../api/services/kyc.service';
 import KycService from '../api/services/kyc.service';
@@ -7,12 +9,15 @@ import OtpService from '../api/services/otp.service';
 interface SignupState {
   form: {
     firstName: string;
+    middleName: string;
     lastName: string;
+    // Collected at signup on mobile; verified later in the KYC phone step.
     phone: string;
     email: string;
     password: string;
     confirmPassword: string;
     referralCode: string;
+    howDidYouHear: string;
     securityQuestion1: string;
     securityAnswer1: string;
     securityQuestion2: string;
@@ -39,12 +44,14 @@ interface SignupState {
 
 const initialForm = {
   firstName: '',
+  middleName: '',
   lastName: '',
   phone: '',
   email: '',
   password: '',
   confirmPassword: '',
   referralCode: '',
+  howDidYouHear: '',
   securityQuestion1: '',
   securityAnswer1: '',
   securityQuestion2: '',
@@ -53,7 +60,9 @@ const initialForm = {
   securityQuestion2Id: '',
 };
 
-export const useSignupStore = create<SignupState>((set, get) => ({
+export const useSignupStore = create<SignupState>()(
+  persist(
+  (set, get) => ({
   form: { ...initialForm },
   agreedTerms: false,
   agreedPrivacy: false,
@@ -85,10 +94,10 @@ export const useSignupStore = create<SignupState>((set, get) => ({
         otp_action_type: 'registration',
         identifier: form.email,
       });
-      console.log('response', response)
+      console.log(response)
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.errors[0].detail || 'Failed to send OTP' });
+      set({ error: error.response?.data?.message || 'Failed to send OTP' });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -103,10 +112,12 @@ export const useSignupStore = create<SignupState>((set, get) => ({
       const response = await OtpService.verifyOtp({
         identifier: form.email,
         otp_code: otpCode,
+        // Lets a retried signup of an unverified account use the new password.
+        ...(form.password ? { password: form.password } : {}),
       });
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.errors[0].detail || 'OTP verification failed' });
+      set({ error: error.response?.data?.message || 'OTP verification failed' });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -117,21 +128,61 @@ export const useSignupStore = create<SignupState>((set, get) => ({
   register: async () => {
     const { form, agreedTerms, agreedPrivacy } = get();
     set({ isLoading: true, error: null });
-    console.log({ form, agreedPrivacy, agreedTerms })
     try {
       const response = await AuthService.register({
         first_name: form.firstName,
+        middle_name: form.middleName.trim() || null,
         last_name: form.lastName,
         email: form.email,
-        phone_number: form.phone,
         password: form.password,
         terms: agreedTerms,
         privacy: agreedPrivacy,
+        how_did_you_hear: form.howDidYouHear,
         ...(form.referralCode ? { referral_code: form.referralCode } : {}),
       });
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.errors[0].detail || 'Registration failed' });
+      let parsedMessage = '';
+      if (Array.isArray(error.response?.data?.errors)) {
+        parsedMessage = error.response.data.errors.map((e: any) => `${e.attr ? e.attr + ': ' : ''}${e.detail || e.message}`).join(' | ');
+      } else if (error.response?.data?.detail) {
+        parsedMessage = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        parsedMessage = error.response.data.message;
+      } else if (typeof error.response?.data === 'string') {
+        parsedMessage = error.response.data;
+      }
+      
+      const errorMessage = parsedMessage || 'Registration failed';
+      set({ error: errorMessage });
+
+      if (
+        error.response?.status === 400 && 
+        error.response?.data?.type === 'validation_error' && 
+        errorMessage.toLowerCase().includes('already exists')
+      ) {
+        // Existing account: unverified users get a fresh code and go to the
+        // verify screen; verified users are sent to log in instead.
+        try {
+          const { default: apiClient } = await import('../api/client');
+          await apiClient.post('/otp/send-otp/', {
+            otp_type: 'email',
+            otp_action_type: 'registration',
+            identifier: form.email
+          });
+          set({ error: null });
+          return { requiresOtpVerification: true };
+        } catch (otpErr: any) {
+          const alreadyVerified = otpErr.response?.data?.errors?.some(
+            (e: any) => e.code === 'user_already_verified',
+          );
+          if (alreadyVerified) {
+            set({ error: null });
+            return { alreadyVerified: true };
+          }
+          console.error("Failed to send OTP to existing user", otpErr);
+        }
+      }
       throw error;
     } finally {
       set({ isLoading: false });
@@ -165,10 +216,32 @@ export const useSignupStore = create<SignupState>((set, get) => ({
       });
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.errors[0].detail || 'Failed to submit security questions' });
+      set({ error: error.response?.data?.message || 'Failed to submit security questions' });
       throw error;
     } finally {
       set({ isLoading: false });
     }
   },
-}));
+}),
+  {
+    // Survive the app closing between signup steps (e.g. while fetching the OTP).
+    // Only non-secret identity fields are stored; passwords stay in memory.
+    name: 'signup-storage',
+    storage: createJSONStorage(() => AsyncStorage),
+    partialize: (state) => ({
+      form: {
+        firstName: state.form.firstName,
+        middleName: state.form.middleName,
+        lastName: state.form.lastName,
+        phone: state.form.phone,
+        email: state.form.email,
+        referralCode: state.form.referralCode,
+      },
+    }),
+    merge: (persisted, current) => ({
+      ...current,
+      form: { ...current.form, ...(persisted as Partial<SignupState>)?.form },
+    }),
+  },
+  ),
+);

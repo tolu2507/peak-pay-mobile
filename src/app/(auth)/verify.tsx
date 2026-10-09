@@ -9,6 +9,8 @@ import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { OtpInput } from '@/shared/ui/base/otp-input';
 import { Ionicons } from '@expo/vector-icons';
 import { Toast } from '@/shared/ui/molecules/Toast';
+import AuthService from '@/api/services/auth.service';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useSignupStore } from '@/store/useSignupStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -27,13 +29,13 @@ const maskPhone = (phone: string) => {
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const { form, isLoading, verifyOtp, sendOtp, register } = useSignupStore();
+  const { form, isLoading, verifyOtp, sendOtp, resetForm } = useSignupStore();
   const [otp, setOtp] = useState('');
   const [timer, setTimer] = useState(116);
   const [showCongratulations, setShowCongratulations] = useState(false);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (timer > 0) {
       interval = setInterval(() => {
         setTimer((prev) => prev - 1);
@@ -52,16 +54,42 @@ export default function VerifyScreen() {
     if (otp.length === 6) {
       try {
         await verifyOtp(otp);
-        Toast.show('Email verified successfully!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-        setShowCongratulations(true);
-        
-        setTimeout(() => {
-          setShowCongratulations(false);
-          router.replace('/(auth)/login');
-        }, 3000);
       } catch (error: any) {
-        Toast.show(error.response?.data?.message || 'Verification failed', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+        // The API client already shows the server's message.
+        return;
       }
+      Toast.show('Email verified successfully!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+      // OTP verification activates the account but does not issue a session,
+      // so log in with the password from signup (as the web does).
+      let session: any = null;
+      if (form.password) {
+        try {
+          session = await AuthService.login({
+            email_phonenumber: form.email,
+            email: form.email,
+            password: form.password,
+          });
+          if (!session?.access) session = null;
+        } catch {
+          // The OTP is already consumed; continue through login if needed.
+        }
+      }
+      setShowCongratulations(true);
+      setTimeout(() => {
+        setShowCongratulations(false);
+        if (session) {
+          // The root layout moves an authenticated user to the tabs.
+          useAuthStore.getState().setAuth(
+            session.access,
+            session.user || { email: form.email },
+            session.refresh,
+            session.loan_amount,
+          );
+          resetForm();
+        } else {
+          router.replace('/(auth)/login');
+        }
+      }, 3000);
     } else {
       Toast.show('Please enter the 6-digit code', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
     }

@@ -5,64 +5,109 @@ import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
 import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
+import { nextKycRoute } from '@/constants/kyc-routes';
+import { Toast } from '@/shared/ui/molecules/Toast';
+import { isKycCompleted, useKYCStore } from '@/store/useKYCStore';
 import { useLoanStore } from '@/store/useLoanStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
-import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Shadows } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const OPTIONS = {
-  purpose: ["Car", "Business", "Education", "Health", "Personal"],
-  duration: ["3 months", "6 months", "12 months", "18 months", "24 months"]
+const MINIMUM_AMOUNT = 1000;
+
+const formatNaira = (value: string | number) =>
+  `₦ ${Number(value).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+
+// "2026-04-25" -> "25 Apr, 2026"
+const formatDate = (value: string) => {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+  const month = date.toLocaleString('en-GB', { month: 'short' });
+  return `${date.getDate()} ${month}, ${date.getFullYear()}`;
 };
+
+const percent = (value: string) => `${Number(value)}%`;
+
+type DropdownKey = 'purpose' | 'duration';
 
 export default function ApplyLoanScreen() {
   const router = useRouter();
-  const { loanDetails, setLoanField, nextStep } = useLoanStore();
-  const [activeDropdown, setActiveDropdown] = useState<keyof typeof OPTIONS | null>(null);
+  const {
+    loanDetails,
+    setLoanField,
+    reasons,
+    tenors,
+    quote,
+    loadOptions,
+    getQuote,
+    loadCurrentAddress,
+    isLoading,
+    error,
+    fieldErrors,
+  } = useLoanStore();
+  const [activeDropdown, setActiveDropdown] = useState<DropdownKey | null>(null);
+  const [isOpeningAddress, setIsOpeningAddress] = useState(false);
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
 
-  const amountNumber = parseFloat(loanDetails.amount.replace(/[^0-9.]/g, '')) || 0;
+  // Purposes and durations come from the backend.
+  useEffect(() => {
+    loadOptions().catch(() => undefined);
+  }, [loadOptions]);
 
-  const calculations = useMemo(() => {
-    if (!amountNumber) return null;
-    const durationMonths = parseInt(loanDetails.duration) || 6;
-    const interestRate = 0.25; // 25% flat
-    const managementFeeRate = 0.01; // 1%
-    const insuranceRate = 0.003; // 0.3%
+  const options: Record<DropdownKey, { value: string; label: string }[]> = {
+    purpose: reasons.map((reason) => ({ value: reason.id, label: reason.loan_reason })),
+    duration: tenors.map((tenor) => ({ value: String(tenor.months), label: tenor.label })),
+  };
+  const labelFor = (key: DropdownKey, value: string) =>
+    options[key].find((option) => option.value === value)?.label || '';
 
-    const loanAmount = amountNumber;
-    const totalInterest = loanAmount * interestRate;
-    const managementFee = loanAmount * managementFeeRate;
-    const insurance = loanAmount * insuranceRate;
+  const amountNumber = Number(loanDetails.amount) || 0;
+  const isFormValid = !!loanDetails.purpose && amountNumber >= MINIMUM_AMOUNT && !!loanDetails.duration;
 
-    const totalRepayment = loanAmount + totalInterest + managementFee + insurance;
-    const monthlyPayment = totalRepayment / durationMonths;
+  // The breakdown is priced by the server (/loan/quote/), as on the web.
+  const summaryDetails = quote ? [
+    { label: 'Amount you will receive', value: formatNaira(quote.amount_to_receive) },
+    { label: 'Loan amount', value: formatNaira(quote.loan_amount) },
+    { label: 'Monthly flat interest rate', value: percent(quote.monthly_interest_rate) },
+    { label: 'Loan duration', value: labelFor('duration', String(quote.duration_in_months)) || `${quote.duration_in_months} months` },
+    { label: 'Management fee', value: `${percent(quote.management_fee_percentage)} flat` },
+    { label: 'Credit life insurance', value: `${percent(quote.credit_life_insurance_percentage)} flat` },
+    { label: 'Estimated total repayment', value: formatNaira(quote.estimated_total_repayment) },
+    { label: 'Date of first payment', value: formatDate(quote.date_of_first_payment) },
+  ] : [];
 
-    return {
-      monthlyPayment: Math.round(monthlyPayment),
-      receiveAmount: loanAmount + (loanAmount * 0.1), // Mocking "Amount you will receive" higher as per UI
-      loanAmount: loanAmount,
-      interestRate: '25%',
-      duration: `${durationMonths} months`,
-      managementFee: '1% flat',
-      insurance: '0.3% flat'
-    };
-  }, [amountNumber, loanDetails.duration]);
-
-  const isFormValid = loanDetails.purpose && amountNumber > 0 && loanDetails.duration;
-
-  const handleProceed = () => {
-    if (isFormValid) {
-      nextStep();
-      router.push('/loans/address');
+  const handleProceed = async () => {
+    if (!isFormValid) return;
+    if (!quote) {
+      const kyc = useKYCStore.getState();
+      if (!isKycCompleted(kyc)) {
+        // Check the server before sending the user back to KYC.
+        await kyc.syncKycProgress();
+        if (!isKycCompleted(useKYCStore.getState())) {
+          Toast.show('Complete your KYC to take a loan.', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+          router.push((nextKycRoute() ?? '/kyc/phone') as any);
+          return;
+        }
+      }
+      getQuote().catch(() => undefined);
+      return;
     }
+    setIsOpeningAddress(true);
+    try {
+      await loadCurrentAddress();
+    } catch {
+      // Without the current address the user can still enter one.
+    } finally {
+      setIsOpeningAddress(false);
+    }
+    router.push('/loans/address');
   };
 
-  const openDropdown = (key: keyof typeof OPTIONS) => {
+  const openDropdown = (key: DropdownKey) => {
     setActiveDropdown(key);
     bottomSheetRef.current?.expand();
   };
@@ -96,7 +141,7 @@ export default function ApplyLoanScreen() {
                 onPress={() => openDropdown('purpose')}
               >
                 <ThemedText style={[styles.dropdownValue, !loanDetails.purpose && { color: '#AAA' }]}>
-                  {loanDetails.purpose || 'Select an option'}
+                  {labelFor('purpose', loanDetails.purpose) || 'Select an option'}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
@@ -106,9 +151,14 @@ export default function ApplyLoanScreen() {
               label="How much do you need?"
               placeholder="₦ 10,000,000"
               keyboardType="numeric"
-              value={loanDetails.amount}
-              onChangeText={(val) => setLoanField('amount', val)}
+              value={loanDetails.amount ? Number(loanDetails.amount).toLocaleString('en-NG') : ''}
+              onChangeText={(val) => setLoanField('amount', val.replace(/\D/g, ''))}
             />
+            {(fieldErrors.amount || (loanDetails.amount !== '' && amountNumber < MINIMUM_AMOUNT)) && (
+              <ThemedText style={styles.fieldError}>
+                {fieldErrors.amount || `The minimum amount is ${formatNaira(MINIMUM_AMOUNT)}.`}
+              </ThemedText>
+            )}
 
             <View style={styles.dropdownContainer}>
               <ThemedText style={styles.fieldLabel}>How long do you want to repay for?</ThemedText>
@@ -117,45 +167,32 @@ export default function ApplyLoanScreen() {
                 onPress={() => openDropdown('duration')}
               >
                 <ThemedText style={[styles.dropdownValue, !loanDetails.duration && { color: '#AAA' }]}>
-                  {loanDetails.duration || 'Select an option'}
+                  {labelFor('duration', loanDetails.duration) || 'Select an option'}
                 </ThemedText>
                 <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
             </View>
           </View>
 
-          {calculations && (
+          {error && <ThemedText style={styles.fieldError}>{error}</ThemedText>}
+
+          {quote && (
             <View style={styles.summaryContainer}>
               <View style={styles.monthlyPaymentCard}>
                 <ThemedText style={styles.monthlyLabel}>Estimated Monthly Payment</ThemedText>
-                <ThemedText style={styles.monthlyValue}>₦ {calculations.monthlyPayment.toLocaleString()}</ThemedText>
+                <ThemedText style={styles.monthlyValue}>{formatNaira(quote.monthly_repayment)}</ThemedText>
               </View>
 
               <View style={styles.detailsList}>
-                <View style={styles.detailItem}>
-                  <ThemedText style={styles.detailLabel}>Amount you will receive</ThemedText>
-                  <ThemedText style={styles.detailValue}>₦ {calculations.receiveAmount.toLocaleString()}</ThemedText>
-                </View>
-                <View style={styles.detailItem}>
-                  <ThemedText style={styles.detailLabel}>Loan amount</ThemedText>
-                  <ThemedText style={styles.detailValue}>₦ {calculations.loanAmount.toLocaleString()}</ThemedText>
-                </View>
-                <View style={styles.detailItem}>
-                  <ThemedText style={styles.detailLabel}>Monthly flat interest rate</ThemedText>
-                  <ThemedText style={styles.detailValue}>{calculations.interestRate}</ThemedText>
-                </View>
-                <View style={styles.detailItem}>
-                  <ThemedText style={styles.detailLabel}>Loan duration</ThemedText>
-                  <ThemedText style={styles.detailValue}>{calculations.duration}</ThemedText>
-                </View>
-                <View style={styles.detailItem}>
-                  <ThemedText style={styles.detailLabel}>Management fee</ThemedText>
-                  <ThemedText style={styles.detailValue}>{calculations.managementFee}</ThemedText>
-                </View>
-                <View style={[styles.detailItem, { borderBottomWidth: 0 }]}>
-                  <ThemedText style={styles.detailLabel}>Credit life insurance</ThemedText>
-                  <ThemedText style={styles.detailValue}>{calculations.insurance}</ThemedText>
-                </View>
+                {summaryDetails.map((detail, index) => (
+                  <View
+                    key={detail.label}
+                    style={[styles.detailItem, index === summaryDetails.length - 1 && { borderBottomWidth: 0 }]}
+                  >
+                    <ThemedText style={styles.detailLabel}>{detail.label}</ThemedText>
+                    <ThemedText style={styles.detailValue}>{detail.value}</ThemedText>
+                  </View>
+                ))}
               </View>
             </View>
           )}
@@ -163,13 +200,14 @@ export default function ApplyLoanScreen() {
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              disabled={!isFormValid}
+              isLoading={isLoading || isOpeningAddress}
+              disabled={!isFormValid || isLoading || isOpeningAddress}
               width={SCREEN_WIDTH - 48}
               height={56}
               backgroundColor={isFormValid ? "#FF7A00" : "#FAFAFA"}
               borderRadius={16}
             >
-              <ThemedText style={[styles.buttonText, { color: isFormValid ? "#FFF" : "#AAA" }]}>Proceed</ThemedText>
+              <ThemedText style={[styles.buttonText, { color: isFormValid ? "#FFF" : "#AAA" }]}>{quote ? 'Continue' : 'Proceed'}</ThemedText>
             </Button>
           </View>
         </ScrollView>
@@ -183,16 +221,19 @@ export default function ApplyLoanScreen() {
       >
         <ScrollView style={styles.optionsList}>
           <ThemedText style={styles.optionsHeader}>Select option</ThemedText>
-          {activeDropdown && OPTIONS[activeDropdown].map((opt, idx) => (
+          {activeDropdown && options[activeDropdown].length === 0 && (
+            <ActivityIndicator color="#FF7A00" style={{ marginTop: 20 }} />
+          )}
+          {activeDropdown && options[activeDropdown].map((opt) => (
             <TouchableOpacity
-              key={idx}
+              key={opt.value}
               style={styles.optionItem}
               onPress={() => {
-                setLoanField(activeDropdown as any, opt);
+                setLoanField(activeDropdown, opt.value);
                 bottomSheetRef.current?.close();
               }}
             >
-              <ThemedText style={styles.optionText}>{opt}</ThemedText>
+              <ThemedText style={styles.optionText}>{opt.label}</ThemedText>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -202,6 +243,11 @@ export default function ApplyLoanScreen() {
 }
 
 const styles = StyleSheet.create({
+  fieldError: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 4,
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFF',
@@ -258,6 +304,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FFF',
+    ...Shadows.input,
   },
   dropdownValue: {
     fontSize: 14,
@@ -273,6 +320,7 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     marginBottom: 24,
+    ...Shadows.card,
   },
   monthlyLabel: {
     fontSize: 14,
@@ -288,6 +336,8 @@ const styles = StyleSheet.create({
   detailsList: {
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
+    ...Shadows.card,
+    backgroundColor: '#FFF',
   },
   detailItem: {
     flexDirection: 'row',

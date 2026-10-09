@@ -1,94 +1,90 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { routeAfterKycStep } from '@/constants/kyc-routes';
+import { smileCaptureToPayload } from '@/shared/smile-capture';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { useKYCStore } from '@/store/useKYCStore';
-import { BiometricKYCParams, ConsentInformationParams, IdInfoParams, SmileIDBiometricKYCView } from '@smile_identity/react-native-expo';
+import { SmartSelfieParams, SmileIDSmartSelfieEnrollmentView } from '@smile_identity/react-native-expo';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, StyleSheet, View } from 'react-native';
-
-// SmileID Expo SDK - uncomment after installing @smile_identity/react-native-expo
-// import { SmileIDBiometricKYCView } from '@smile_identity/react-native-expo';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// The SDK only captures the selfie and liveness frames; like the web, the
+// images go to our backend, which runs Biometric KYC against the BVN.
+const selfieParams: SmartSelfieParams = {
+  allowNewEnroll: true,
+  allowAgentMode: false,
+  showAttribution: true,
+  showInstructions: true,
+  skipApiSubmission: true,
+  useStrictMode: false,
+};
+
 export default function SmileIdVerificationScreen() {
   const router = useRouter();
-  const { smileIdConfig, nextStep, bvn, verifyBvn } = useKYCStore();
-  const [isComplete, setIsComplete] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const { submitLiveness, pendingVerification, bvn, bvnInput } = useKYCStore();
+  // A job already submitted for this BVN is checked again instead of
+  // capturing a new selfie.
+  const hasPendingJob = !!pendingVerification && pendingVerification.bvn === (bvnInput || bvn);
+  const [isVerifying, setIsVerifying] = useState(hasPendingJob);
+  const started = useRef(false);
 
-  const idInfoParams: IdInfoParams = {
-    country: 'NG',
-    idType: 'BVN',
-    idNumber: bvn,
-    entered: true,
-  };
-
-  const consentInformationParams: ConsentInformationParams = {
-    consentGrantedDate: new Date().toISOString(),
-    personalDetails: false,
-    contactInformation: false,
-    documentInformation: false
-  };
-
-  // Build the BiometricKYC params from the config returned by the backend
-  const biometricKYCParams: BiometricKYCParams = {
-    allowNewEnroll: false,
-    allowAgentMode: true,
-    showAttribution: true,
-    showInstructions: true,
-    skipApiSubmission: false,
-    useStrictMode: false,
-    // extraPartnerParams: {
-    //   'custom_param_1': 'value1',
-    //   'custom_param_2': 'value2'
-    // },
-    consentInformation: consentInformationParams, // Optional consent information
-    idInfo: idInfoParams
-  };
-
-  const handleSuccess = async (result: any) => {
-    console.log('SmileID Biometric KYC Success:', result);
+  const verify = async (payload: string) => {
     setIsVerifying(true);
-    
     try {
-      const smileJobId = result.jobId;
-
-      // TODO: Replace with the actual endpoint from your backend once ready
-      // await axios.post('https://your-api.com/kyc/verify-job', {
-      //   jobId: smileJobId,
-      //   bvn: bvn
-      // });
-      
-      // For now, simulating the wait...
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      setIsComplete(true);
-      await verifyBvn();
-      nextStep();
-      
+      const result = await submitLiveness(payload);
+      if (result.verification_status !== 'verified') {
+        Toast.show('Your verification is still processing. Please check again in a few minutes.', {
+          type: 'info',
+          position: 'top',
+          backgroundColor: '#FF7A00',
+        });
+        router.back();
+        return;
+      }
       Toast.show('Identity verified successfully!', {
         type: 'success',
         position: 'top',
         backgroundColor: '#1E9F85',
       });
-      // Navigate to NIN textual verification step
-      router.replace('/kyc/nin' as any);
-    } catch (error) {
-      console.error('Backend Verification Error:', error);
-      Toast.show('Backend verification failed. Please try again.', {
+      router.replace(routeAfterKycStep('liveness') as any);
+    } catch (error: any) {
+      Toast.show(useKYCStore.getState().error || error?.message || 'Verification failed. Please try again.', {
         type: 'error',
         position: 'top',
         backgroundColor: '#FF3B30',
       });
-    } finally {
-      setIsVerifying(false);
+      router.back();
     }
   };
 
+  useEffect(() => {
+    if (hasPendingJob && !started.current) {
+      started.current = true;
+      // submitLiveness ignores the payload when it resumes a pending job.
+      verify('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSuccess = async (result: unknown) => {
+    if (started.current) return;
+    started.current = true;
+    setIsVerifying(true);
+    let payload: string;
+    try {
+      payload = await smileCaptureToPayload(result);
+    } catch (error: any) {
+      handleError(error);
+      return;
+    }
+    await verify(payload);
+  };
+
   const handleError = (error: any) => {
-    console.error('SmileID Biometric KYC Error:', error);
+    console.error('SmileID selfie capture error:', error);
     Toast.show('Verification failed. Please try again.', {
       type: 'error',
       position: 'top',
@@ -98,72 +94,27 @@ export default function SmileIdVerificationScreen() {
     router.back();
   };
 
-  // If no config from backend, show error
-  // if (!smileIdConfig) {
-  //   return (
-  //     <ThemedView style={styles.container}>
-  //       <SafeAreaView style={styles.safeArea}>
-  //         <View style={styles.errorContainer}>
-  //           <ThemedText style={styles.errorText}>
-  //             Verification configuration not found. Please go back and try again.
-  //           </ThemedText>
-  //         </View>
-  //       </SafeAreaView>
-  //     </ThemedView>
-  //   );
-  // }
-
   return (
     <ThemedView style={styles.container}>
-      {/*
-        ============================================================
-        SMILE ID BIOMETRIC KYC VIEW
-        ============================================================
-        
-        Uncomment the SmileIDBiometricKYCView below after installing
-        @smile_identity/react-native-expo:
-        
-        npx expo install @smile_identity/react-native-expo
-        
-        Then uncomment the import at the top of this file as well.
-        ============================================================
-      */}
-
-
       {isVerifying ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1E9F85" />
           <ThemedText style={styles.loadingText}>
-            Verifying your identity...
+            Comparing your selfie with your BVN photo...
           </ThemedText>
         </View>
       ) : (
-        <SmileIDBiometricKYCView
+        <SmileIDSmartSelfieEnrollmentView
           style={styles.smileIdView}
-          params={biometricKYCParams}
-          onResult={(event) => {
-            handleSuccess(event.nativeEvent.result);
+          params={selfieParams}
+          onResult={(event: any) => {
+            handleSuccess(event?.nativeEvent ?? event);
           }}
-          onError={(event) => {
-            handleError(event.nativeEvent.error);
+          onError={(event: any) => {
+            handleError(event?.nativeEvent?.error ?? event);
           }}
         />
       )}
-
-
-      {/* Placeholder while SDK is not installed - remove this once SmileID is working */}
-      {/* <SafeAreaView style={styles.safeArea}>
-        <View style={styles.placeholderContainer}>
-          <ThemedText style={styles.placeholderTitle}>SmileID Biometric KYC</ThemedText>
-          <ThemedText style={styles.placeholderText}>
-            The SmileID SDK view will render here once{'\n'}
-            @smile_identity/react-native-expo is installed.
-          </ThemedText>
-          <ThemedText style={styles.configText}>
-            Config received: {JSON.stringify(smileIdConfig, null, 2)}
-          </ThemedText>
-        </View>
-      </SafeAreaView> */}
     </ThemedView>
   );
 }

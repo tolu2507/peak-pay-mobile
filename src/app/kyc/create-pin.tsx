@@ -4,6 +4,7 @@ import { Button } from '@/shared/ui/base/button';
 import { OtpInput } from '@/shared/ui/base/otp-input';
 import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { Toast } from '@/shared/ui/molecules/Toast';
+import { nextKycRoute } from '@/constants/kyc-routes';
 import { useKYCStore } from '@/store/useKYCStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -15,8 +16,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function CreatePinScreen() {
   const router = useRouter();
-    const { pin, confirmPin, setPin, setConfirmPin, createTransactionPin, isLoading } = useKYCStore();
-  const [localLoading, setLocalLoading] = useState(false);
+  const { createTransactionPin, setKYCComplete, isLoading } = useKYCStore();
+  // The PIN is kept only on this screen, never in the shared store.
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
 
   const isComplete = pin.length === 4 && confirmPin.length === 4;
 
@@ -27,11 +30,19 @@ export default function CreatePinScreen() {
     }
 
     try {
-      await createTransactionPin();
+      await createTransactionPin(pin);
+      // The PIN is the last step; finish only if nothing earlier is still open.
+      const remaining = nextKycRoute();
+      if (remaining) {
+        Toast.show('PIN created. Please complete the remaining KYC steps.', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        router.replace(remaining as any);
+        return;
+      }
+      setKYCComplete(true);
       Toast.show('KYC Verification Complete!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
       router.replace('/(tabs)');
     } catch (error) {
-      // Error is handled by store/apiClient
+      Toast.show(useKYCStore.getState().error || 'PIN creation failed', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
     }
   };
 

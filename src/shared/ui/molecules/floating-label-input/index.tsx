@@ -1,3 +1,4 @@
+import { Shadows } from '@/constants/theme';
 import React, { useState, useRef } from 'react';
 import { 
   StyleSheet, 
@@ -120,9 +121,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 12,
     backgroundColor: '#FFF',
+    ...Shadows.input,
   },
   containerFocused: {
     borderColor: '#FF7A00',
+    // A soft brand-coloured glow marks the active field.
+    shadowColor: '#FF7A00',
+    shadowOpacity: 0.15,
   },
   icon: {
     marginRight: 8,

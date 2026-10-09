@@ -7,12 +7,16 @@ interface GlobalState {
   isSuccessModalVisible: boolean;
   successMessage: string;
   isConnected: boolean;
+  showBalance: boolean;
+  isModalVisible: boolean;
   errorAction?: () => void;
   showError: (message: string, action?: () => void) => void;
   hideError: () => void;
   showSuccess: (message: string) => void;
   hideSuccess: () => void;
   setConnected: (connected: boolean) => void;
+  setShowBalance: (show: boolean) => void;
+  setModal: (visible: boolean) => void;
 }
 
 export const useGlobalStore = create<GlobalState>((set) => ({
@@ -22,6 +26,8 @@ export const useGlobalStore = create<GlobalState>((set) => ({
   isSuccessModalVisible: false,
   successMessage: '',
   isConnected: true,
+  showBalance: false,
+  isModalVisible: false,
   showError: (message, action) => {
     set({ isErrorModalVisible: true, errorMessage: message, errorAction: action });
     Toast.show(message, { type: 'error', position: "top", backgroundColor: "#FF3B30" });
@@ -33,4 +39,6 @@ export const useGlobalStore = create<GlobalState>((set) => ({
   },
   hideSuccess: () => set({ isSuccessModalVisible: false, successMessage: '' }),
   setConnected: (connected) => set({ isConnected: connected }),
+  setShowBalance: (show) => set({ showBalance: show }),
+  setModal: (visible) => set({ isModalVisible: visible }),
 }));

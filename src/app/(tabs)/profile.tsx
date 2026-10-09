@@ -7,6 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Toast } from '@/shared/ui/molecules/Toast';
+import { Shadows } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -75,6 +76,7 @@ export default function ProfileScreen() {
             <ThemedText style={styles.sectionHeader}>Personal Settings</ThemedText>
             <SettingItem icon="person-outline" label="Account Information" onPress={() => {}} />
             <SettingItem icon="card-outline" label="Linked Bank Accounts" onPress={() => {}} />
+            <SettingItem icon="gift-outline" label="Referrals" onPress={() => router.push('/referrals')} />
             <SettingItem icon="notifications-outline" label="Notifications" onPress={() => {}} />
           </View>
 
@@ -127,6 +129,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginBottom: 32,
+    ...Shadows.card,
   },
   avatarContainer: {
     width: 60,

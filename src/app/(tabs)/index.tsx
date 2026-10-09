@@ -9,11 +9,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import SegmentedControl from '@/shared/ui/organisms/segmented-control';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useKYCStore } from '@/store/useKYCStore';
+import { nextKycRoute } from '@/constants/kyc-routes';
+import { isKycCompleted, useKYCStore } from '@/store/useKYCStore';
 import { useLoanStore } from '@/store/useLoanStore';
 import { useSignupStore } from '@/store/useSignupStore';
-import userService, { UserResponse } from '@/api/services/user.service';
-import { useState, useEffect } from 'react';
+import userService, { type UserProfile } from '@/api/services/user.service';
+import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { Shadows } from '@/constants/theme';
 
 const FILTERS = ['All', 'Credit', 'Debit'] as const;
 
@@ -23,15 +26,17 @@ export default function HomeScreen() {
   const router = useRouter();
   const { form } = useSignupStore();
   const { loanAmount, user: authUser } = useAuthStore();
-  const { isKYCComplete } = useKYCStore();
-  const { isApplied, appliedAmount, status } = useLoanStore();
+  const kycState = useKYCStore();
+  const { syncKycProgress } = kycState;
+  const isKYCComplete = isKycCompleted(kycState);
+  const { isApplied, appliedAmount, status, fetchLatestApplication } = useLoanStore();
   const [filter, setFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
-  const [profile, setProfile] = useState<UserResponse | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const data = await userService.getCurrentUser();
+        const data = await userService.getMe();
         setProfile(data);
       } catch (error) {
         console.error('Failed to fetch profile:', error);
@@ -40,15 +45,23 @@ export default function HomeScreen() {
     fetchProfile();
   }, []);
 
+  // KYC progress and the loan status live on the server; refresh them each
+  // time the tab is shown (e.g. after finishing a KYC step).
+  useFocusEffect(
+    useCallback(() => {
+      void syncKycProgress();
+      fetchLatestApplication().catch(() => undefined);
+    }, [syncKycProgress, fetchLatestApplication]),
+  );
+
+  const openKyc = () => router.push((nextKycRoute() ?? '/kyc/phone') as any);
+
   const displayName = profile?.first_name 
     ? `${profile.first_name} ${profile.last_name || ''}` 
     : (form.firstName && form.lastName ? `${form.firstName} ${form.lastName}` : 'User');
 
-  const transactions = [
-    { id: '1', title: 'Card Funding', date: '24, Mar 2024', amount: '+₦5,000.00', type: 'credit' },
-    { id: '2', title: 'DSTV Subscription', date: '23, Mar 2024', amount: '-₦12,000.00', type: 'debit' },
-    { id: '3', title: 'Sent to John', date: '21, Mar 2024', amount: '-₦2,500.00', type: 'debit' },
-  ];
+  // There is no transactions endpoint yet; the web shows an empty list too.
+  const transactions: { id: string; title: string; date: string; amount: string; type: 'credit' | 'debit' }[] = [];
 
   const filteredTransactions = transactions.filter(tx => {
     if (filter === 'All') return true;
@@ -72,7 +85,7 @@ export default function HomeScreen() {
           {!isKYCComplete && (
             <TouchableOpacity
               style={styles.kycAlert}
-              onPress={() => router.push('/kyc/bvn')}
+              onPress={openKyc}
               activeOpacity={0.8}
             >
               <View style={styles.kycLeft}>
@@ -88,7 +101,7 @@ export default function HomeScreen() {
             <View style={[styles.eligibilityCard, isApplied && { backgroundColor: '#F0F9FF' }]}>
               <View style={styles.eligibilityContent}>
                 <ThemedText style={styles.eligibilityLabel}>
-                  {isApplied ? `You applied for ₦${appliedAmount}` : 'You may be eligible for up to ₦10,000,000'}
+                  {isApplied ? `You applied for ₦${Number(appliedAmount).toLocaleString('en-NG')}` : 'You may be eligible for up to ₦10,000,000'}
                 </ThemedText>
                 <View style={styles.statusRow}>
                   <ThemedText style={[styles.statusTag, isApplied && { backgroundColor: status === 'applied' ? '#E0F2FE' : '#DCFCE7', color: status === 'applied' ? '#0369A1' : '#15803D' }]}>
@@ -97,7 +110,7 @@ export default function HomeScreen() {
                 </View>
                 <TouchableOpacity
                   style={[styles.getItBtn, isApplied && { backgroundColor: status === 'applied' ? '#CCC' : '#1E9F85' }]}
-                  onPress={() => !isApplied ? router.push('/kyc/bvn') : (status === 'approved' && Toast.show('Offer Accepted!', { type: 'success', position: "top", backgroundColor: "#1E9F85" }))}
+                  onPress={() => !isApplied ? openKyc() : (status === 'approved' && Toast.show('Offer Accepted!', { type: 'success', position: "top", backgroundColor: "#1E9F85" }))}
                   disabled={isApplied && status === 'applied'}
                 >
                   <ThemedText style={styles.getItText}>
@@ -241,6 +254,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 20,
+    ...Shadows.card,
+    backgroundColor: '#FFF',
   },
   kycLeft: {
     flexDirection: 'row',
@@ -260,6 +275,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    ...Shadows.card,
   },
   eligibilityLabel: {
     fontSize: 20,
@@ -285,6 +301,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
+    ...Shadows.card,
   },
   balanceLabel: {
     fontSize: 14,

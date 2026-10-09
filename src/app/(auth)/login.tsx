@@ -16,7 +16,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function LoginScreen() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const { email, password, setEmail, setPassword, login, isLoading } = useLoginStore();
+  const { email, password, setEmail, setPassword, login, isLoading, notice } = useLoginStore();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   const handleLogin = async () => {
@@ -27,6 +27,7 @@ export default function LoginScreen() {
 
     try {
       await login();
+      useLoginStore.getState().setNotice(null);
       Toast.show('Login successful!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
       router.replace('/(tabs)');
     } catch (error) {
@@ -46,6 +47,7 @@ export default function LoginScreen() {
 
           <ThemedText type="title" style={styles.title}>Login to your account</ThemedText>
           <ThemedText style={styles.subtitle}>Enter your details to continue</ThemedText>
+          {notice && <ThemedText style={styles.notice}>{notice}</ThemedText>}
 
           <View style={styles.form}>
             <FloatingLabelInput
@@ -69,7 +71,12 @@ export default function LoginScreen() {
               onRightIconPress={() => setIsPasswordVisible(!isPasswordVisible)}
             />
 
-            <ThemedText style={styles.forgotPassword}>Forgot Password?</ThemedText>
+            <ThemedText
+              style={styles.forgotPassword}
+              onPress={() => router.push({ pathname: '/(auth)/forgot-password', params: { email } })}
+            >
+              Forgot Password?
+            </ThemedText>
           </View>
 
           <View style={styles.footer}>
@@ -129,6 +136,15 @@ const styles = StyleSheet.create({
   },
   form: {
     marginTop: 20,
+  },
+  notice: {
+    fontSize: 14,
+    color: '#B35F00',
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+    overflow: 'hidden',
   },
   forgotPassword: {
     color: '#FF7A00',

@@ -8,10 +8,11 @@ import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/type
 import { useKYCStore } from '@/store/useKYCStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import KycService from '@/api/services/kyc.service';
+import { routeAfterKycStep } from '@/constants/kyc-routes';
+import { Shadows } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -19,23 +20,28 @@ const PEP_OPTIONS = ["Yes, I am a PEP", "No, I am not a PEP", "Immediate family 
 
 export default function PepDetailsScreen() {
   const router = useRouter();
-  const { pep, setPepField, nextStep } = useKYCStore();
-  const [isLoading, setIsLoading] = useState(false);
+  const { pepRecord, isPepLoaded, loadPep, savePep, isLoading } = useKYCStore();
+  const [isPep, setIsPep] = useState('');
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
 
+  useEffect(() => {
+    if (!isPepLoaded) void loadPep();
+  }, [isPepLoaded, loadPep]);
+
+  // Show the saved answer; the backend only stores yes/no.
+  useEffect(() => {
+    if (pepRecord && !isPep) setIsPep(pepRecord.is_pep ? PEP_OPTIONS[0] : PEP_OPTIONS[1]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pepRecord]);
+
   const handleProceed = async () => {
-    if (pep.isPep) {
-      setIsLoading(true);
+    if (isPep) {
       try {
-        const isPepBool = pep.isPep !== "No, I am not a PEP";
-        await KycService.createPepDetails({ is_pep: isPepBool });
-        nextStep();
+        await savePep(isPep !== "No, I am not a PEP");
         Toast.show('PEP details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-        router.push('/kyc/bank-details');
+        router.push(routeAfterKycStep('pep') as any);
       } catch (error: any) {
-        Toast.show(error.response?.data?.message || 'Failed to save PEP details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
-      } finally {
-        setIsLoading(false);
+        Toast.show(useKYCStore.getState().error || 'Failed to save PEP details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
       }
     }
   };
@@ -78,8 +84,8 @@ export default function PepDetailsScreen() {
                   onPress={() => bottomSheetRef.current?.expand()}
                   activeOpacity={0.7}
                 >
-                  <ThemedText style={[styles.dropdownValue, !pep.isPep && { color: '#AAA' }]}>
-                    {pep.isPep || 'Select an option'}
+                  <ThemedText style={[styles.dropdownValue, !isPep && { color: '#AAA' }]}>
+                    {isPep || 'Select an option'}
                   </ThemedText>
                   <Ionicons name="chevron-down" size={20} color="#666" />
                 </TouchableOpacity>
@@ -90,13 +96,14 @@ export default function PepDetailsScreen() {
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              disabled={!pep.isPep}
+              isLoading={isLoading}
+              disabled={!isPep || isLoading}
               width={SCREEN_WIDTH - 48}
               height={56}
-              backgroundColor={pep.isPep ? "#FF7A00" : "#F3F3F3"}
+              backgroundColor={isPep ? "#FF7A00" : "#F3F3F3"}
               borderRadius={16}
             >
-              <ThemedText style={[styles.buttonText, { color: pep.isPep ? "#FFF" : "#AAA" }]}>Proceed</ThemedText>
+              <ThemedText style={[styles.buttonText, { color: isPep ? "#FFF" : "#AAA" }]}>Proceed</ThemedText>
             </Button>
           </View>
       </SafeAreaView>
@@ -116,7 +123,7 @@ export default function PepDetailsScreen() {
               key={idx}
               style={styles.optionItem}
               onPress={() => {
-                setPepField('isPep', opt);
+                setIsPep(opt);
                 bottomSheetRef.current?.close();
               }}
             >
@@ -207,6 +214,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FFF',
+    ...Shadows.input,
   },
   dropdownValue: {
     fontSize: 14,

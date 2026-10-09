@@ -1,5 +1,7 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { routeAfterKycStep } from '@/constants/kyc-routes';
+import { NIGERIAN_STATES } from '@/constants/nigeria';
 import { Button } from '@/shared/ui/base/button';
 import { OtpInput } from '@/shared/ui/base/otp-input';
 import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
@@ -7,32 +9,110 @@ import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
-import { useKYCStore } from '@/store/useKYCStore';
+import type { EmploymentStatus } from '@/api/services/kyc.service';
+import {
+  employmentFields,
+  isEmploymentFormComplete,
+  needsWorkEmailVerification,
+  useKYCStore,
+  type EmploymentForm,
+} from '@/store/useKYCStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
-import KycService from '@/api/services/kyc.service';
-import OtpService from '@/api/services/otp.service';
-import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Shadows } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const OPTIONS = {
-  status: ["Salary Earner", "Self Employed", "Unemployed", "Student"],
-  sector: ["Technology", "Healthcare", "Finance", "Education", "Other"],
-  industry: ["Software", "Banking", "Retail", "Manufacturing", "Other"],
-  state: ["Lagos", "Abuja", "Oyo", "Kano", "Rivers", "Other"]
+type Option = { value: string; label: string };
+
+// Same options as the web; values are what the backend accepts.
+const OPTIONS: Record<'employmentStatus' | 'sector' | 'industry' | 'payday' | 'state', Option[]> = {
+  employmentStatus: [
+    { value: 'employed', label: 'Employed' },
+    { value: 'self_employed', label: 'Self-Employed' },
+    { value: 'unemployed', label: 'Unemployed' },
+    { value: 'student', label: 'Student' },
+    { value: 'retired', label: 'Retired' },
+  ],
+  sector: [
+    { value: 'public', label: 'Public' },
+    { value: 'private', label: 'Private' },
+    { value: 'non_profit', label: 'Non-Profit' },
+  ],
+  industry: [
+    'Agriculture', 'Construction & Real Estate', 'Education', 'Finance & Banking',
+    'Government', 'Healthcare', 'Hospitality', 'Legal & Professional Services',
+    'Manufacturing', 'Media & Entertainment', 'Oil & Gas', 'Retail & Trade',
+    'Technology', 'Telecommunications', 'Transport & Logistics', 'Other',
+  ].map((name) => ({ value: name, label: name })),
+  payday: Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
+  state: NIGERIAN_STATES.map((name) => ({ value: name, label: name })),
 };
+
+type DropdownKey = keyof typeof OPTIONS;
+
+// Question for each field; some depend on the employment status (as on web).
+const employmentLabel = (field: keyof EmploymentForm, status: EmploymentStatus | ''): string => {
+  const byStatus: Partial<Record<keyof EmploymentForm, Partial<Record<EmploymentStatus, string>>>> = {
+    employerName: {
+      employed: 'Where do you work?',
+      self_employed: 'What is your business name?',
+      student: 'Which school do you attend?',
+      retired: 'Who pays your pension?',
+    },
+    industry: {
+      employed: 'What industry do you work in?',
+      self_employed: 'What industry is your business in?',
+    },
+    monthlyIncome: {
+      employed: 'How much do you earn monthly?',
+      self_employed: 'What is your average monthly income?',
+      unemployed: 'How much do you receive monthly?',
+      student: 'How much do you receive monthly?',
+      retired: 'How much is your monthly pension?',
+    },
+    payday: {
+      employed: 'What day of the month do you get paid?',
+      retired: 'What day of the month is your pension paid?',
+    },
+    state: { employed: 'What state is your company located in?', self_employed: 'What state is your business in?' },
+    city: { employed: 'Work city', self_employed: 'Business city (optional)' },
+    address: {
+      employed: 'What is your company address?',
+      self_employed: 'What is your business address?',
+    },
+  };
+  const fixed: Partial<Record<keyof EmploymentForm, string>> = {
+    jobTitle: 'What is your job title?',
+    sector: 'What sector do you work in?',
+    sourceOfIncome: 'What is your main source of income?',
+    workEmail: 'What is your work email?',
+  };
+  return (status && byStatus[field]?.[status]) || fixed[field] || '';
+};
+
+const WORK_EMAIL_RESEND_SECONDS = 60;
 
 export default function EmploymentScreen() {
   const router = useRouter();
-  const { employment, setEmploymentField, nextStep } = useKYCStore();
-  const [activeDropdown, setActiveDropdown] = useState<keyof typeof OPTIONS | null>(null);
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [isSending, setIsSending] = useState(false);
+  const {
+    employment,
+    currentEmployment,
+    isEmploymentLoaded,
+    setEmploymentField,
+    loadEmployment,
+    saveEmployment,
+    sendWorkEmailOtp,
+    verifyWorkEmailOtp,
+    isLoading,
+  } = useKYCStore();
+  const [activeDropdown, setActiveDropdown] = useState<DropdownKey | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [otpKey, setOtpKey] = useState(0);
 
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
   const otpSheetRef = useRef<BottomSheetMethods>(null);
@@ -44,95 +124,105 @@ export default function EmploymentScreen() {
     return `${maskedName}@${domain}`;
   };
 
-  const isSalaryEarner = employment.status === "Salary Earner";
-  const isSelfEmployed = employment.status === "Self Employed";
+  // Pre-fill the saved version; saving again creates a new version.
+  useEffect(() => {
+    if (!isEmploymentLoaded) void loadEmployment();
+  }, [isEmploymentLoaded, loadEmployment]);
 
-  const isFormValid = () => {
-    if (isSalaryEarner) {
-      return employment.workPlace && employment.sector && employment.industry &&
-        employment.monthlyIncome && employment.payDay && employment.state && employment.workEmail;
-    }
-    if (isSelfEmployed) {
-      return employment.sourceOfIncome && employment.monthlyIncome && employment.paidByCompany !== null;
-    }
-    return false;
+  useEffect(() => {
+    if (timer <= 0) return;
+    const t = setTimeout(() => setTimer((prev) => prev - 1), 1000);
+    return () => clearTimeout(t);
+  }, [timer]);
+
+  const status = employment.employmentStatus;
+  const fields = new Set(employmentFields(status));
+  const label = (field: keyof EmploymentForm) => employmentLabel(field, status);
+  const set = (field: keyof EmploymentForm) => (value: string) => setEmploymentField(field, value);
+  const isFormValid = isEmploymentFormComplete(employment);
+  const formatTimer = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+
+  const showError = (fallback: string) =>
+    Toast.show(useKYCStore.getState().error || fallback, { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+
+  const finish = async () => {
+    await saveEmployment();
+    Toast.show('Employment details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+    router.push(routeAfterKycStep('employment') as any);
   };
 
   const handleProceed = async () => {
-    if (isSalaryEarner) {
-      if (!employment.workEmail) return;
-      setIsSending(true);
-      try {
-        await OtpService.sendOtp({
-          otp_type: 'email',
-          otp_action_type: 'kyc',
-          identifier: employment.workEmail.trim(),
-        });
+    try {
+      // Employed users verify their work email first, unless the saved
+      // version already holds this same verified email.
+      if (needsWorkEmailVerification(employment, currentEmployment)) {
+        await sendWorkEmailOtp();
+        setTimer(WORK_EMAIL_RESEND_SECONDS);
+        setOtpKey((key) => key + 1);
         otpSheetRef.current?.expand();
-        Toast.show('OTP sent to your email', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      } catch (error: any) {
-        Toast.show(error.response?.data?.message || 'Failed to send OTP', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
-      } finally {
-        setIsSending(false);
+        Toast.show('OTP sent to your work email', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+        return;
       }
-    } else {
-      nextStep();
-      Toast.show('Employment details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      router.push('/kyc/pep-details');
+      await finish();
+    } catch (error) {
+      showError('Failed to save employment details');
     }
   };
 
   const handleOtpComplete = async (code: string) => {
-    setOtp(code);
     setIsVerifying(true);
     try {
-      await OtpService.verifyOtp({
-        identifier: employment.workEmail.trim(),
-        otp_code: code,
-      });
-
-      // Submit employment details after OTP verification
-      await KycService.createEmploymentVerification({
-        employment_status: employment.status,
-        employer_name: employment.workPlace,
-        industry: employment.industry,
-        monthly_income: employment.monthlyIncome,
-        date_of_payroll: employment.payDay,
-        job_title: 'Employee', // Defaulting as UI doesn't have this field yet
-        company_location: employment.state,
-      });
-
+      await verifyWorkEmailOtp(code);
       otpSheetRef.current?.close();
-      Toast.show('Employment verified!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      nextStep();
-      router.push('/kyc/pep-details');
-    } catch (error: any) {
-      Toast.show(error.response?.data?.message || 'Verification failed', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
-      setOtp(''); // Optionally reset OTP on failure
+      await finish();
+    } catch (error) {
+      showError('Verification failed');
+      setOtpKey((key) => key + 1);
     } finally {
       setIsVerifying(false);
     }
   };
 
-  const openDropdown = (key: keyof typeof OPTIONS) => {
+  const handleResend = async () => {
+    if (timer > 0) return;
+    try {
+      await sendWorkEmailOtp();
+      setTimer(WORK_EMAIL_RESEND_SECONDS);
+      setOtpKey((key) => key + 1);
+    } catch {
+      showError('Could not send the verification code');
+    }
+  };
+
+  const openDropdown = (key: DropdownKey) => {
     setActiveDropdown(key);
     bottomSheetRef.current?.expand();
   };
 
-  const renderDropdown = (label: string, value: string, key: keyof typeof OPTIONS) => (
+  const renderDropdown = (labelText: string, value: string, key: DropdownKey) => (
     <View style={styles.dropdownContainer}>
-      <ThemedText style={styles.fieldLabel}>{label}</ThemedText>
+      <ThemedText style={styles.fieldLabel}>{labelText}</ThemedText>
       <TouchableOpacity
         style={styles.dropdownTrigger}
         onPress={() => openDropdown(key)}
         activeOpacity={0.7}
       >
         <ThemedText style={[styles.dropdownValue, !value && { color: '#AAA' }]}>
-          {value || 'Select an option'}
+          {OPTIONS[key].find((o) => o.value === value)?.label || value || 'Select an option'}
         </ThemedText>
         <Ionicons name="chevron-down" size={20} color="#666" />
       </TouchableOpacity>
     </View>
+  );
+
+  const renderInput = (field: keyof EmploymentForm, placeholder: string, extra?: Partial<React.ComponentProps<typeof FloatingLabelInput>>) => (
+    <FloatingLabelInput
+      label={label(field)}
+      placeholder={placeholder}
+      value={employment[field]}
+      onChangeText={set(field)}
+      {...extra}
+    />
   );
 
   return (
@@ -160,96 +250,44 @@ export default function EmploymentScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
+            {!isEmploymentLoaded ? (
+              <ActivityIndicator size="large" color="#FF7A00" style={{ marginTop: 40 }} />
+            ) : (
             <View style={styles.form}>
-              {renderDropdown("What is your employment status?", employment.status, "status")}
+              {renderDropdown("What is your employment status?", status, "employmentStatus")}
 
-              {isSalaryEarner && (
-                <>
-                  <FloatingLabelInput
-                    label="Where do you work?"
-                    placeholder="Enter answer"
-                    value={employment.workPlace}
-                    onChangeText={(val) => setEmploymentField('workPlace', val)}
-                  />
-                  {renderDropdown("What sector do you work in?", employment.sector, "sector")}
-                  {renderDropdown("Which industry do you work in?", employment.industry, "industry")}
-                  <FloatingLabelInput
-                    label="How much do you earn monthly?"
-                    placeholder="₦Enter answer"
-                    keyboardType="numeric"
-                    value={employment.monthlyIncome}
-                    onChangeText={(val) => setEmploymentField('monthlyIncome', val)}
-                  />
-                  <FloatingLabelInput
-                    label="What date do you get paid every month?"
-                    placeholder="Enter answer"
-                    keyboardType="numeric"
-                    maxLength={2}
-                    value={employment.payDay}
-                    onChangeText={(val) => setEmploymentField('payDay', val)}
-                  />
-                  {renderDropdown("What state is your company located in?", employment.state, "state")}
-                  <FloatingLabelInput
-                    label="What is your work email?"
-                    placeholder="Enter answer"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={employment.workEmail}
-                    onChangeText={(val) => setEmploymentField('workEmail', val)}
-                  />
-                </>
-              )}
-
-              {isSelfEmployed && (
-                <>
-                  <FloatingLabelInput
-                    label="What is your source of income?"
-                    placeholder="Business"
-                    value={employment.sourceOfIncome}
-                    onChangeText={(val) => setEmploymentField('sourceOfIncome', val)}
-                  />
-                  <FloatingLabelInput
-                    label="How much do you earn monthly?"
-                    placeholder="₦2,000,000"
-                    keyboardType="numeric"
-                    value={employment.monthlyIncome}
-                    onChangeText={(val) => setEmploymentField('monthlyIncome', val)}
-                  />
-                  <View style={styles.radioGroup}>
-                    <ThemedText style={styles.radioTitle}>Do you get paid by your company?</ThemedText>
-                    <View style={styles.radioOptions}>
-                      <TouchableOpacity
-                        style={styles.radioOption}
-                        onPress={() => setEmploymentField('paidByCompany', true)}
-                      >
-                        <Ionicons name={employment.paidByCompany === true ? "radio-button-on" : "radio-button-off"} size={24} color="#FF7A00" />
-                        <ThemedText style={styles.radioText}>Yes</ThemedText>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.radioOption}
-                        onPress={() => setEmploymentField('paidByCompany', false)}
-                      >
-                        <Ionicons name={employment.paidByCompany === false ? "radio-button-on" : "radio-button-off"} size={24} color="#FF7A00" />
-                        <ThemedText style={styles.radioText}>No</ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </>
-              )}
+              {fields.has('employerName') && renderInput('employerName', 'Enter name')}
+              {fields.has('jobTitle') && renderInput('jobTitle', 'e.g. Accountant')}
+              {fields.has('sector') && renderDropdown(label('sector'), employment.sector, 'sector')}
+              {fields.has('industry') && renderDropdown(label('industry'), employment.industry, 'industry')}
+              {fields.has('sourceOfIncome') && renderInput('sourceOfIncome', 'e.g. Family support, allowance')}
+              {fields.has('monthlyIncome') && renderInput('monthlyIncome', '₦ e.g. 200,000', {
+                keyboardType: 'numeric',
+                onChangeText: (val: string) => setEmploymentField('monthlyIncome', val.replace(/[^\d.,]/g, '')),
+              })}
+              {fields.has('payday') && renderDropdown(label('payday'), employment.payday, 'payday')}
+              {fields.has('state') && renderDropdown(label('state'), employment.state, 'state')}
+              {fields.has('city') && renderInput('city', 'Enter city')}
+              {fields.has('address') && renderInput('address', 'Enter address')}
+              {fields.has('workEmail') && renderInput('workEmail', 'name@company.com', {
+                keyboardType: 'email-address',
+                autoCapitalize: 'none',
+              })}
             </View>
+            )}
           </ScrollView>
 
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              disabled={!isFormValid() || isSending}
+              disabled={!isFormValid || isLoading}
               width={SCREEN_WIDTH - 48}
               height={56}
-              backgroundColor={isFormValid() && !isSending ? "#FF7A00" : "#F3F3F3"}
+              backgroundColor={isFormValid && !isLoading ? "#FF7A00" : "#F3F3F3"}
               borderRadius={16}
             >
-              <ThemedText style={[styles.buttonText, { color: isFormValid() && !isSending ? "#FFF" : "#AAA" }]}>
-                {isSending ? 'Sending OTP...' : 'Proceed'}
+              <ThemedText style={[styles.buttonText, { color: isFormValid && !isLoading ? "#FFF" : "#AAA" }]}>
+                {isLoading ? 'Please wait...' : 'Proceed'}
               </ThemedText>
             </Button>
           </View>
@@ -258,7 +296,7 @@ export default function EmploymentScreen() {
       {/* Options Dropdown */}
       <BottomSheet
         ref={bottomSheetRef}
-        snapPoints={['40%', '40%']}
+        snapPoints={['60%', '60%']}
         enableBackdrop={true}
         backdropOpacity={0.7}
         backgroundColor="#FFF"
@@ -266,16 +304,16 @@ export default function EmploymentScreen() {
       >
         <ScrollView style={styles.optionsList}>
           <ThemedText style={styles.optionsHeader}>Select option</ThemedText>
-          {activeDropdown && OPTIONS[activeDropdown].map((opt, idx) => (
+          {activeDropdown && OPTIONS[activeDropdown].map((opt) => (
             <TouchableOpacity
-              key={idx}
+              key={opt.value}
               style={styles.optionItem}
               onPress={() => {
-                setEmploymentField(activeDropdown as any, opt);
+                setEmploymentField(activeDropdown, opt.value);
                 bottomSheetRef.current?.close();
               }}
             >
-              <ThemedText style={styles.optionText}>{opt}</ThemedText>
+              <ThemedText style={styles.optionText}>{opt.label}</ThemedText>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -301,9 +339,9 @@ export default function EmploymentScreen() {
 
           <View style={styles.otpContainer}>
             <OtpInput
+              key={otpKey}
               onInputFinished={handleOtpComplete}
               otpCount={6}
-              onInputChange={(code) => setOtp(code)}
               inputWidth={(SCREEN_WIDTH - 80) / 6}
               inputHeight={55}
               inputBorderRadius={16}
@@ -314,7 +352,13 @@ export default function EmploymentScreen() {
               textStyle={{ color: '#000', fontSize: 24 }}
             />
 
-            <ThemedText style={styles.resendText}>Resend code in <ThemedText style={styles.timerText}>01:56</ThemedText></ThemedText>
+            {isVerifying ? (
+              <ActivityIndicator color="#FF7A00" style={{ marginTop: 12 }} />
+            ) : timer > 0 ? (
+              <ThemedText style={styles.resendText}>Resend code in <ThemedText style={styles.timerText}>{formatTimer(timer)}</ThemedText></ThemedText>
+            ) : (
+              <ThemedText style={styles.resendText} onPress={handleResend}>Didn't get a code? <ThemedText style={styles.timerText}>Resend OTP</ThemedText></ThemedText>
+            )}
           </View>
         </View>
       </BottomSheet>
@@ -388,6 +432,7 @@ const styles = StyleSheet.create({
     height: 56,
     paddingHorizontal: 16,
     backgroundColor: '#FFF',
+    ...Shadows.input,
   },
   dropdownValue: {
     fontSize: 14,
