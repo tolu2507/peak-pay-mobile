@@ -7,6 +7,7 @@ import Animated, {
   withTiming, 
   interpolate 
 } from 'react-native-reanimated';
+import { interFamily } from '@/constants/fonts';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -92,7 +93,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: interFamily('700'),
     color: '#333',
   },
 });

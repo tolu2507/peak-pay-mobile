@@ -108,6 +108,7 @@ export const FloatingLabelInput: React.FC<FloatingLabelInputProps> = ({
 
 // Simple helper since reanimated 3.x interpolateColor exists
 import { interpolateColor } from 'react-native-reanimated';
+import { interFamily } from '@/constants/fonts';
 const interpolateColor_custom = interpolateColor;
 
 const styles = StyleSheet.create({
@@ -134,13 +135,14 @@ const styles = StyleSheet.create({
   },
   label: {
     position: 'absolute',
-    fontWeight: '600',
+    fontFamily: interFamily('600'),
     zIndex: 1,
   },
   input: {
     flex: 1,
     height: '100%',
     fontSize: 14,
+    fontFamily: interFamily('400'),
     color: '#000',
     textAlignVertical: 'center',
     paddingTop: Platform.OS === 'ios' ? 0 : 2,

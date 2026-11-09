@@ -5,10 +5,17 @@ import { useGlobalStore } from '@/store/useGlobalStore';
 import NetInfo from '@react-native-community/netinfo';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { initialize, SmileConfig } from '@smile_identity/react-native-expo';
+import { INTER_FONTS } from '@/constants/fonts';
+import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+// Keep the splash screen up until Inter has loaded, so text never flashes in
+// the system font.
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
 // Create configuration object with your Smile ID portal credentials
 const config = new SmileConfig(
   '7980',              // Partner ID from Smile ID portal
@@ -23,6 +30,7 @@ export default function RootLayout() {
   const { setConnected, showError } = useGlobalStore();
   const segments = useSegments();
   const router = useRouter();
+  const [fontsLoaded, fontError] = useFonts(INTER_FONTS);
   // Initialize with configuration object
   initialize(true, true, config);
 
@@ -37,7 +45,11 @@ export default function RootLayout() {
     return () => unsubscribe();
   }, []);
 
+  const fontsReady = fontsLoaded || !!fontError;
+
   useEffect(() => {
+    // The navigator isn't mounted until the fonts are ready.
+    if (!fontsReady) return;
     const inAuthGroup = segments[0] === '(auth)';
     const isPublicRoute = inAuthGroup || (segments[0] as string) === 'legal';
 
@@ -48,7 +60,14 @@ export default function RootLayout() {
       // Redirect to tabs if authenticated and in auth group
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, segments]);
+  }, [isAuthenticated, segments, fontsReady]);
+
+  useEffect(() => {
+    if (fontsReady) SplashScreen.hideAsync().catch(() => undefined);
+  }, [fontsReady]);
+
+  // If the font fails to load, carry on with the system font.
+  if (!fontsReady) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

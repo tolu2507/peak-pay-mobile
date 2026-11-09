@@ -36,6 +36,7 @@ import {
   VIEWPORT_HEIGHT,
   VIEWPORT_WIDTH,
 } from "./helper";
+import { interFamily } from '@/constants/fonts';
 
 const FloatingButtonComponent: React.FC<FloatingButtonComponentProps> =
   memo<FloatingButtonComponentProps>(
@@ -107,7 +108,7 @@ const FloatingButtonComponent: React.FC<FloatingButtonComponentProps> =
                 style={{
                   color: "white",
                   fontSize: 10,
-                  fontWeight: "bold",
+                  fontFamily: interFamily('bold'),
                 }}
               >
                 {badge > 99 ? "99+" : badge.toString()}
@@ -207,7 +208,7 @@ const CurvedBottomTabsCore: React.FC<CurvedBottomTabsProps> =
       inactiveColor = "#cccccc",
       labelColor = "#cccccc",
       textSize = 12,
-      fontFamily,
+      fontFamily = interFamily('600'),
       hideWhenKeyboardShown = false,
       animation = { damping: 12, stiffness: 120, mass: 0.5 },
       shadow = {
@@ -415,7 +416,7 @@ const createStyles = <T extends StyleConfig>({
     badgeLabel: {
       color: "white",
       fontSize: 10,
-      fontWeight: "bold",
+      fontFamily: interFamily('bold'),
     },
   });
 

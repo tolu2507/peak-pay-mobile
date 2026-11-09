@@ -19,6 +19,7 @@ import Animated, {
 import { LinearGradient } from "expo-linear-gradient";
 // @ts-check
 import type { IButton } from "./types";
+import { interFamily } from '@/constants/fonts';
 
 export const Button: React.FC<IButton> & React.FunctionComponent<IButton> =
   memo<IButton>(
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   loadingText: {
-    fontWeight: "600",
+    fontFamily: interFamily('600'),
   },
 });
 

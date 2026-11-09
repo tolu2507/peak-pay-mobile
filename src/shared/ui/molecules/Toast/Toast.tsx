@@ -22,6 +22,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
+import { interFamily } from '@/constants/fonts';
 
 if (Platform.OS === "android") {
   if (UIManager.setLayoutAnimationEnabledExperimental) {
@@ -377,7 +378,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 20,
     marginRight: 12,
-    fontWeight: "bold",
+    fontFamily: interFamily('bold'),
     textAlign: "center",
     width: 24,
   },
@@ -387,7 +388,7 @@ const styles = StyleSheet.create({
   text: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "500",
+    fontFamily: interFamily('500'),
     lineHeight: 20,
   },
   actionButton: {
@@ -400,7 +401,7 @@ const styles = StyleSheet.create({
   actionText: {
     color: "#fff",
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: interFamily('600'),
   },
   expandedContent: {
     overflow: "hidden",

@@ -19,6 +19,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { BlurView, type BlurViewProps } from "expo-blur";
 import type { ICharacter, IAnimatedInput } from "./types";
+import { interFamily } from '@/constants/fonts';
 
 const AnimatedBlurView =
   Animated.createAnimatedComponent<BlurViewProps>(BlurView);
@@ -283,12 +284,12 @@ const styles = StyleSheet.create({
   character: {
     fontSize: 16,
     color: "#71717a",
-    fontWeight: "400",
+    fontFamily: interFamily('400'),
   },
   input: {
     fontSize: 16,
     color: "#fafafa",
     paddingVertical: 0,
-    fontWeight: "400",
+    fontFamily: interFamily('400'),
   },
 });

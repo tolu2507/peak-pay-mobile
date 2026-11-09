@@ -21,6 +21,7 @@ import { BlurView, type BlurViewProps } from "expo-blur";
 import type { SearchBarProps } from "./SearchBar.types";
 import { scheduleOnRN } from "react-native-worklets";
 import { Ionicons } from "@expo/vector-icons";
+import { interFamily } from '@/constants/fonts';
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 const AnimatedView = Animated.createAnimatedComponent(View);
@@ -394,8 +395,7 @@ const styles = StyleSheet.create({
     width: "100%",
     color: "#FFFFFF",
     fontSize: 17,
-    fontFamily: "System",
-    fontWeight: "400",
+    fontFamily: interFamily('400'),
 
     includeFontPadding: false,
     textAlignVertical: "center",
@@ -420,7 +420,6 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 17,
-    fontFamily: "System",
-    fontWeight: "400",
+    fontFamily: interFamily('400'),
   },
 });

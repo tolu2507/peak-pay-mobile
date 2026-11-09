@@ -1,6 +1,7 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { Fonts, ThemeColor } from '@/constants/theme';
+import { withInter } from '@/constants/fonts';
+import { ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
@@ -13,7 +14,8 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
 
   return (
     <Text
-      style={[
+      // Inter in the weight the style asks for (see constants/fonts).
+      style={withInter([
         { color: theme[themeColor ?? 'text'] },
         type === 'default' && styles.default,
         type === 'title' && styles.title,
@@ -24,7 +26,7 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
         type === 'linkPrimary' && styles.linkPrimary,
         type === 'code' && styles.code,
         style,
-      ]}
+      ])}
       {...rest}
     />
   );
@@ -66,8 +68,7 @@ const styles = StyleSheet.create({
     color: '#3c87f7',
   },
   code: {
-    fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
+    fontWeight: 500,
     fontSize: 12,
   },
 });

@@ -177,7 +177,6 @@ const styles = StyleSheet.create({
   configText: {
     fontSize: 11,
     color: '#999',
-    fontFamily: 'monospace',
     backgroundColor: '#F5F5F5',
     padding: 16,
     borderRadius: 12,

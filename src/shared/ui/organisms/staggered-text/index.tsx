@@ -35,6 +35,7 @@ import {
   DEFAULT_EXIT_FROM,
   DEFAULT_EXIT_TO,
 } from "./const";
+import { INTER_FONTS } from '@/constants/fonts';
 
 const CharRenderer: React.FC<ICharacterRenderer<SkFont>> &
   React.FunctionComponent<ICharacterRenderer<SkFont>> = memo<
@@ -275,7 +276,8 @@ export const StaggeredText: React.FC<IStaggeredText> &
     activeIndex = 0,
     fontSize = 24,
     color = "#ffffff",
-    fontPath,
+    // Skia draws this text, so it needs the font file itself (Inter, as everywhere).
+    fontPath = INTER_FONTS.Inter_600SemiBold,
     height: heightProp,
     staggerFrom = "leading",
     letterSpacing = 1,

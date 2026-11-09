@@ -30,6 +30,7 @@ import Animated, {
 } from "react-native-reanimated";
 import type { IOtpInput, IOtpContext, IOtpItem } from "./types";
 import { ANIMATION_VARIATIONS } from "./const";
+import { interFamily } from '@/constants/fonts';
 
 const { width: WIDTH } = Dimensions.get("window");
 const OtpContext = createContext<IOtpContext>({} as IOtpContext);
@@ -422,7 +423,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1c0a0a",
   },
   text: {
-    fontWeight: "600",
+    fontFamily: interFamily('600'),
     fontSize: 18,
     color: "#f8fafc",
   },
@@ -435,7 +436,7 @@ const styles = StyleSheet.create({
   errorMessage: {
     color: "#ef4444",
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: interFamily('500'),
     textAlign: "center",
     marginTop: 20,
     paddingHorizontal: 16,
