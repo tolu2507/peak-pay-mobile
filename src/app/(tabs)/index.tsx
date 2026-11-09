@@ -6,7 +6,6 @@ import React from 'react';
 import { Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Toast } from '@/shared/ui/molecules/Toast';
 import SegmentedControl from '@/shared/ui/organisms/segmented-control';
 import { useAuthStore } from '@/store/useAuthStore';
 import { nextKycRoute } from '@/constants/kyc-routes';
@@ -25,11 +24,16 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function HomeScreen() {
   const router = useRouter();
   const { form } = useSignupStore();
-  const { loanAmount, user: authUser } = useAuthStore();
+  const { user: authUser } = useAuthStore();
   const kycState = useKYCStore();
   const { syncKycProgress } = kycState;
   const isKYCComplete = isKycCompleted(kycState);
-  const { isApplied, appliedAmount, status, fetchLatestApplication } = useLoanStore();
+  const { isApplied, appliedAmount, status, application, eligibility, fetchLatestApplication, getEligibility } = useLoanStore();
+  // The approved limit, as on the web dashboard.
+  const eligibleAmount = eligibility?.can_apply || (eligibility?.application_status === 'open' && eligibility.eligibility_status === 'eligible')
+    ? Number(eligibility.eligible_amount || 0)
+    : 0;
+  const isPaidOut = application?.disbursement_status === 'disbursed';
   const [filter, setFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
@@ -51,7 +55,8 @@ export default function HomeScreen() {
     useCallback(() => {
       void syncKycProgress();
       fetchLatestApplication().catch(() => undefined);
-    }, [syncKycProgress, fetchLatestApplication]),
+      getEligibility().catch(() => undefined);
+    }, [syncKycProgress, fetchLatestApplication, getEligibility]),
   );
 
   const openKyc = () => router.push((nextKycRoute() ?? '/kyc/phone') as any);
@@ -105,16 +110,21 @@ export default function HomeScreen() {
                 </ThemedText>
                 <View style={styles.statusRow}>
                   <ThemedText style={[styles.statusTag, isApplied && { backgroundColor: status === 'applied' ? '#E0F2FE' : '#DCFCE7', color: status === 'applied' ? '#0369A1' : '#15803D' }]}>
-                    {isApplied ? (status === 'applied' ? 'Under Review' : 'Approved') : 'Action Required'}
+                    {isApplied ? (status === 'applied' ? 'Under Review' : isPaidOut ? 'Active' : 'Approved') : 'Action Required'}
                   </ThemedText>
                 </View>
                 <TouchableOpacity
                   style={[styles.getItBtn, isApplied && { backgroundColor: status === 'applied' ? '#CCC' : '#1E9F85' }]}
-                  onPress={() => !isApplied ? openKyc() : (status === 'approved' && Toast.show('Offer Accepted!', { type: 'success', position: "top", backgroundColor: "#1E9F85" }))}
+                  onPress={() => {
+                    if (!isApplied) openKyc();
+                    // Paid out: manage it. Approved: set up repayment and accept the offer.
+                    else if (isPaidOut) router.push('/(tabs)/loans');
+                    else if (status === 'approved') router.push('/loans/start');
+                  }}
                   disabled={isApplied && status === 'applied'}
                 >
                   <ThemedText style={styles.getItText}>
-                    {isApplied ? (status === 'applied' ? 'Reviewing...' : 'Accept Offer') : 'Get it now'}
+                    {isApplied ? (status === 'applied' ? 'Reviewing...' : isPaidOut ? 'Manage Loan' : 'Accept Offer') : 'Get it now'}
                   </ThemedText>
                 </TouchableOpacity>
               </View>
@@ -126,12 +136,17 @@ export default function HomeScreen() {
             <View style={styles.balanceCard}>
               <ThemedText style={styles.balanceLabel}>Eligible Loan Balance</ThemedText>
               <View style={styles.balanceRow}>
-                <ThemedText style={styles.balanceAmount}>₦ {loanAmount?.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</ThemedText>
+                <ThemedText style={styles.balanceAmount}>₦ {eligibleAmount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</ThemedText>
                 <Ionicons name="eye-off-outline" size={20} color="#666" style={{ marginLeft: 8 }} />
               </View>
+              {eligibility?.can_apply ? (
+                <ThemedText style={styles.balanceLabel}>Your approved limit · choose your loan amount</ThemedText>
+              ) : eligibility?.assessment_status === 'pending_review' ? (
+                <ThemedText style={styles.balanceLabel}>Eligibility review in progress</ThemedText>
+              ) : null}
               <TouchableOpacity
                 style={styles.requestBtn}
-                onPress={() => router.push('/loans')}
+                onPress={() => router.push('/loans/start')}
               >
                 <ThemedText style={styles.requestBtnText}>Request Loan</ThemedText>
               </TouchableOpacity>

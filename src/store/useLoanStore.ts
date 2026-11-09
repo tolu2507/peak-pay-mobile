@@ -1,15 +1,19 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import LoanService, {
   AddressVerification,
   LoanApplication,
+  LoanEligibility,
   LoanQuote,
   LoanReason,
   LoanRequest,
   LoanTenor,
   UploadFile,
+  UtilityBillType,
 } from '../api/services/loan.service';
 
-export type LoanStep = 'request' | 'summary' | 'address';
+export type LoanStep = 'request' | 'summary' | 'address' | 'statement';
 type DashboardLoanStatus = 'idle' | 'applied' | 'approved' | 'rejected';
 
 interface AddressForm {
@@ -19,9 +23,13 @@ interface AddressForm {
   state: string;
   lga: string;
   city: string;
+  billType: UtilityBillType | '';
 }
 
 interface LoanState {
+  // Whose draft this is; a different user starts with an empty one.
+  ownerId: string | null;
+  prepareDraft: (ownerId: string | null) => void;
   step: LoanStep;
   loanDetails: {
     // The id of the chosen LoanReason.
@@ -37,10 +45,12 @@ interface LoanState {
   quote: LoanQuote | null;
   currentAddress: AddressVerification | null;
   application: LoanApplication | null;
+  eligibility: LoanEligibility | null;
   isApplied: boolean;
   status: DashboardLoanStatus;
   appliedAmount: string;
   isLoading: boolean;
+  isQuoting: boolean;
   error: string | null;
   // Backend field name -> message, shown under the matching input.
   fieldErrors: Record<string, string>;
@@ -51,9 +61,11 @@ interface LoanState {
   setStatus: (status: DashboardLoanStatus) => void;
   resetLoan: () => void;
   loadOptions: () => Promise<void>;
-  getQuote: () => Promise<void>;
+  getQuote: () => Promise<LoanQuote>;
+  getEligibility: () => Promise<LoanEligibility>;
   loadCurrentAddress: () => Promise<AddressVerification | null>;
   submitAddress: (utilityBill: UploadFile) => Promise<void>;
+  submitEligibilityAssessment: () => Promise<void>;
   applyLoan: () => Promise<void>;
   fetchLatestApplication: () => Promise<void>;
 }
@@ -66,6 +78,7 @@ const emptyAddress: AddressForm = {
   state: '',
   lga: '',
   city: '',
+  billType: '',
 };
 
 const DASHBOARD_STATUS: Record<LoanApplication['status'], DashboardLoanStatus> = {
@@ -77,8 +90,6 @@ const DASHBOARD_STATUS: Record<LoanApplication['status'], DashboardLoanStatus> =
 
 const GENERIC_ERROR = 'Something went wrong. Please try again.';
 
-// Splits a drf-standardized-errors response into per-field messages and a
-// general message for errors that don't belong to one field.
 type ApiErrorItem = { attr?: string | null; detail?: string; message?: string };
 type ApiErrorBody = { errors?: ApiErrorItem[]; detail?: string; message?: string };
 
@@ -110,7 +121,7 @@ const toRequest = (details: LoanState['loanDetails']): LoanRequest => ({
   duration_in_months: Number(details.duration),
 });
 
-export const useLoanStore = create<LoanState>((set, get) => {
+export const useLoanStore = create<LoanState>()(persist((set, get) => {
   // Runs an API action with the shared loading and error state.
   const run = async <T>(action: () => Promise<T>): Promise<T> => {
     set({ isLoading: true, error: null, fieldErrors: {} });
@@ -126,6 +137,13 @@ export const useLoanStore = create<LoanState>((set, get) => {
   };
 
   return {
+    ownerId: null,
+    prepareDraft: (ownerId) => {
+      if (get().ownerId !== ownerId) {
+        get().resetLoan();
+        set({ ownerId, currentAddress: null, application: null, eligibility: null, isApplied: false, status: 'idle', appliedAmount: '' });
+      }
+    },
     step: 'request',
     loanDetails: { ...emptyLoanDetails },
     address: { ...emptyAddress },
@@ -134,18 +152,21 @@ export const useLoanStore = create<LoanState>((set, get) => {
     quote: null,
     currentAddress: null,
     application: null,
+    eligibility: null,
     isApplied: false,
     status: 'idle',
     appliedAmount: '',
     isLoading: false,
+    isQuoting: false,
     error: null,
     fieldErrors: {},
     setStep: (step) => set({ step, error: null, fieldErrors: {} }),
     setLoanField: (field, value) =>
       set((state) => ({
         loanDetails: { ...state.loanDetails, [field]: value },
-        // Any change invalidates the breakdown shown for the old values.
         quote: null,
+        error: null,
+        fieldErrors: { ...state.fieldErrors, [field]: '' },
       })),
     setAddressField: (field, value) =>
       set((state) => ({
@@ -169,15 +190,34 @@ export const useLoanStore = create<LoanState>((set, get) => {
       ]);
       set({ reasons, tenors });
     },
+    // Prices the current request for the breakdown under the form. A reply
+    // for values the customer has since changed is ignored.
     getQuote: async () => {
-      const quote = await run(() => LoanService.getQuote(toRequest(get().loanDetails)));
-      set({ quote, step: 'summary' });
+      const details = get().loanDetails;
+      set({ isQuoting: true, error: null, fieldErrors: {} });
+      try {
+        const quote = await LoanService.getQuote(toRequest(details));
+        if (get().loanDetails === details) set({ quote });
+        return quote;
+      } catch (error) {
+        if (get().loanDetails === details) {
+          const { message, fields } = parseLoanError(error);
+          set({ error: message, fieldErrors: fields });
+        }
+        throw error;
+      } finally {
+        set({ isQuoting: false });
+      }
+    },
+    getEligibility: async () => {
+      const eligibility = await LoanService.getEligibility();
+      set({ eligibility });
+      return eligibility;
     },
     loadCurrentAddress: async () => {
       const currentAddress = await LoanService.getCurrentAddress();
       set((state) => ({
         currentAddress,
-        // Start a resubmission from the last address the user gave.
         address: currentAddress && !state.address.houseNumber
           ? {
             houseNumber: currentAddress.house_number,
@@ -186,6 +226,7 @@ export const useLoanStore = create<LoanState>((set, get) => {
             state: currentAddress.state,
             lga: currentAddress.lga,
             city: currentAddress.city,
+            billType: (currentAddress.utility_bill_type as UtilityBillType) || '',
           }
           : state.address,
       }));
@@ -200,8 +241,12 @@ export const useLoanStore = create<LoanState>((set, get) => {
         state: address.state,
         lga: address.lga.trim(),
         city: address.city.trim(),
+        ...(address.billType ? { utility_bill_type: address.billType } : {}),
       }, utilityBill));
       set({ currentAddress });
+    },
+    submitEligibilityAssessment: async () => {
+      await run(() => LoanService.submitEligibilityAssessment());
     },
     applyLoan: async () => {
       const { loanDetails } = get();
@@ -216,7 +261,7 @@ export const useLoanStore = create<LoanState>((set, get) => {
     fetchLatestApplication: async () => {
       const [latest] = await LoanService.getLoans();
       if (!latest) return;
-      const status = DASHBOARD_STATUS[latest.status];
+      const status = latest.disbursement_status === 'disbursed' ? 'approved' : DASHBOARD_STATUS[latest.status];
       set({
         application: latest,
         status,
@@ -225,4 +270,14 @@ export const useLoanStore = create<LoanState>((set, get) => {
       });
     },
   };
-});
+}, {
+  // Kept on the phone so a half-filled application survives leaving the app.
+  name: 'peakpay-loan-draft',
+  storage: createJSONStorage(() => AsyncStorage),
+  partialize: (state) => ({
+    ownerId: state.ownerId,
+    step: state.step,
+    loanDetails: state.loanDetails,
+    address: state.address,
+  }),
+}));

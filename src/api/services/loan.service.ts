@@ -40,17 +40,60 @@ export interface LoanApplication {
   loan_reason: string | null;
   loan_reason_name: string | null;
   duration_in_months: number;
-  flat_interest_rate: string;
-  management_fee: string;
-  credit_life_insurance: string;
-  monthly_repayment: string;
-  estimated_total_amount: string;
-  date_of_first_payment: string;
+  flat_interest_rate: string | null;
+  management_fee: string | null;
+  credit_life_insurance: string | null;
+  monthly_repayment: string | null;
+  estimated_total_amount: string | null;
+  date_of_first_payment: string | null;
   address_verification: string | null;
+  statement_request: string | null;
   status: LoanApplicationStatus;
+  application_status: 'open' | 'closed';
+  eligibility_status: 'eligible' | 'ineligible' | null;
+  eligible_amount: string | null;
+  eligibility_assessment: string | null;
+  repayment_setup_completed_at: string | null;
+  offer_accepted_at: string | null;
+  disbursement_status: 'pending' | 'disbursed';
+  disbursement_method: '' | 'automatic' | 'manual';
+  disbursement_platform: '' | 'paystack' | 'bank_transfer' | 'deposit';
+  payout_account: { id: string; bank_name: string; account_number: string; account_name: string } | null;
+  disbursed_amount: string | null;
+  disbursed_at: string | null;
   created_date: string;
   modified_date: string;
 }
+
+export interface OfferCodeDestination {
+  channel: 'sms' | 'email';
+  destination: string;
+}
+
+export interface LoanEligibility {
+  assessment_id: string | null;
+  assessment_status: 'not_started' | 'pending_review' | 'eligible' | 'ineligible' | 'refresh_required' | 'expired';
+  can_apply: boolean;
+  minimum_amount: string;
+  disbursement_status: 'pending' | 'disbursed' | null;
+  expires_at: string | null;
+  expired_at: string | null;
+  application_id: string | null;
+  application_status: 'open' | 'closed' | null;
+  eligibility_status: 'eligible' | 'ineligible' | null;
+  eligible_amount: string | null;
+}
+
+export const UTILITY_BILL_OPTIONS = [
+  { value: 'electricity', label: 'Electricity bill' },
+  { value: 'water', label: 'Water bill' },
+  { value: 'waste', label: 'Waste collection bill' },
+  { value: 'gas', label: 'Gas bill' },
+  { value: 'internet', label: 'Internet bill' },
+  { value: 'telephone', label: 'Telephone bill' },
+] as const;
+
+export type UtilityBillType = typeof UTILITY_BILL_OPTIONS[number]['value'];
 
 export interface AddressRequest {
   house_number: string;
@@ -59,17 +102,16 @@ export interface AddressRequest {
   state: string;
   lga: string;
   city: string;
+  utility_bill_type?: UtilityBillType;
 }
 
 // pending_review -> verified | rejected; verified -> expired after six months.
-// A newer submission marks the previous one superseded.
 export type AddressStatus = 'pending_review' | 'verified' | 'rejected' | 'expired' | 'superseded';
 
 export interface AddressVerification extends AddressRequest {
   id: string;
   utility_bill: string;
   status: AddressStatus;
-  // True when the user must submit a new address before applying.
   needs_new_address: boolean;
   review_note: string;
   reviewed_at: string | null;
@@ -78,14 +120,13 @@ export interface AddressVerification extends AddressRequest {
   modified_date: string;
 }
 
-// A picked file as React Native's FormData expects it (there is no File).
+// A picked file as React Native's FormData expects it
 export interface UploadFile {
   uri: string;
   name: string;
   type: string;
 }
 
-// The loan screens show validation errors inline, not as a toast.
 const inline = { skipErrorToast: true };
 
 class LoanService {
@@ -111,6 +152,15 @@ class LoanService {
     return response.data.data;
   }
 
+  async submitEligibilityAssessment(): Promise<void> {
+    await apiClient.post('/loan/eligibility-assessments/', {}, inline);
+  }
+
+  async getEligibility(signal?: AbortSignal): Promise<LoanEligibility> {
+    const response = await apiClient.get('/loan/applications/eligibility/', { ...inline, signal });
+    return response.data.data;
+  }
+
   // Newest first.
   async getLoans(): Promise<LoanApplication[]> {
     const response = await apiClient.get('/loan/applications/');
@@ -122,6 +172,22 @@ class LoanService {
     return response.data.data;
   }
 
+  // Sends the code that confirms the offer to the customer's phone or email.
+  async sendOfferCode(id: string): Promise<OfferCodeDestination> {
+    const response = await apiClient.post(`/loan/applications/${id}/offer-otp/`, {}, inline);
+    return response.data.data;
+  }
+
+  // Accepts the offer; loans below the automatic limit are then paid out.
+  async acceptOffer(id: string, otpCode: string, transactionPin: string): Promise<LoanApplication> {
+    const response = await apiClient.post(
+      `/loan/applications/${id}/accept-offer/`,
+      { otp_code: otpCode, transaction_pin: transactionPin },
+      inline,
+    );
+    return response.data.data;
+  }
+
   // The address in use, or null when the user hasn't submitted one.
   async getCurrentAddress(): Promise<AddressVerification | null> {
     const response = await apiClient.get('/kyc/address-verification/current/');
@@ -130,9 +196,10 @@ class LoanService {
 
   async submitAddress(data: AddressRequest, utilityBill: UploadFile): Promise<AddressVerification> {
     const form = new FormData();
-    Object.entries(data).forEach(([key, value]) => form.append(key, value));
+    Object.entries(data).forEach(([key, value]) => {
+      if (value) form.append(key, value);
+    });
     form.append('utility_bill', utilityBill as unknown as Blob);
-    // The client defaults to JSON, which would make axios serialise the form.
     const response = await apiClient.post('/kyc/address-verification/', form, {
       ...inline,
       headers: { 'Content-Type': 'multipart/form-data' },

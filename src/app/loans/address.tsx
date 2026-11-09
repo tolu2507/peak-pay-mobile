@@ -1,11 +1,11 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import type { AddressVerification, UploadFile } from '@/api/services/loan.service';
+import { UTILITY_BILL_OPTIONS, type AddressVerification, type UploadFile, type UtilityBillType } from '@/api/services/loan.service';
+import { EVIDENCE_NOTICES, LOAN_STEPS, canReuseAddressRecord } from '@/constants/loan';
 import { NIGERIAN_STATES } from '@/constants/nigeria';
 import { Button } from '@/shared/ui/base/button';
 import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
-import { Toast } from '@/shared/ui/molecules/Toast';
 import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
 import { useLoanStore } from '@/store/useLoanStore';
@@ -53,8 +53,7 @@ export default function AddressLoanScreen() {
     setAddressField,
     currentAddress,
     submitAddress,
-    applyLoan,
-    resetLoan,
+    eligibility,
     isLoading,
     error,
     fieldErrors,
@@ -62,11 +61,18 @@ export default function AddressLoanScreen() {
   const [file, setFile] = useState<UploadFile | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [useNewAddress, setUseNewAddress] = useState(false);
+  const [sheet, setSheet] = useState<'state' | 'billType'>('state');
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
 
   // A verified or pending address on file is reused unless the user moved.
-  const canReuseAddress = !!currentAddress && !currentAddress.needs_new_address;
-  const showForm = !canReuseAddress || useNewAddress;
+  const showForm = !canReuseAddressRecord(currentAddress) || useNewAddress;
+  const notice = eligibility && EVIDENCE_NOTICES[eligibility.assessment_status];
+  const billLabel = UTILITY_BILL_OPTIONS.find((option) => option.value === address.billType)?.label;
+
+  const openSheet = (which: 'state' | 'billType') => {
+    setSheet(which);
+    bottomSheetRef.current?.expand();
+  };
 
   const isFormValid = !showForm || !!(
     address.houseNumber.trim() &&
@@ -75,6 +81,7 @@ export default function AddressLoanScreen() {
     address.state &&
     address.lga.trim() &&
     address.city.trim() &&
+    address.billType &&
     file
   );
 
@@ -106,10 +113,8 @@ export default function AddressLoanScreen() {
         await submitAddress(file);
         setUseNewAddress(false);
       }
-      await applyLoan();
-      resetLoan();
-      Toast.show('Loan Application Submitted!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      router.replace('/(tabs)');
+      // Next: the bank statement, then the eligibility review.
+      router.replace('/loans/statement');
     } catch {
       // The store holds the error, which is shown below.
     }
@@ -132,12 +137,19 @@ export default function AddressLoanScreen() {
               <ThemedText type="title" style={styles.title}>Enter Address</ThemedText>
             </View>
             <CircularProgress
-              currentStep={2}
-              totalSteps={2}
-              progress={2 / 2}
+              currentStep={1}
+              totalSteps={LOAN_STEPS}
+              progress={1 / LOAN_STEPS}
               size={60}
             />
           </View>
+
+          {notice && (
+            <View style={styles.notice}>
+              <Ionicons name="alert-circle-outline" size={20} color="#FF7A00" />
+              <ThemedText style={styles.noticeText}>{notice}</ThemedText>
+            </View>
+          )}
 
           {!showForm && currentAddress && (
             <View style={styles.form}>
@@ -189,7 +201,7 @@ export default function AddressLoanScreen() {
               <ThemedText style={styles.fieldLabel}>What state do you live in?</ThemedText>
               <TouchableOpacity
                 style={styles.dropdownTrigger}
-                onPress={() => bottomSheetRef.current?.expand()}
+                onPress={() => openSheet('state')}
               >
                 <ThemedText style={[styles.dropdownValue, !address.state && { color: '#AAA' }]}>
                   {address.state || 'Select an option'}
@@ -216,7 +228,18 @@ export default function AddressLoanScreen() {
             {fieldError('city')}
 
             <View style={styles.dropdownContainer}>
-              <ThemedText style={styles.fieldLabel}>Upload a recent utility bill (JPG, PNG or PDF, max 5MB)</ThemedText>
+              <ThemedText style={styles.fieldLabel}>Select document</ThemedText>
+              <TouchableOpacity style={styles.dropdownTrigger} onPress={() => openSheet('billType')}>
+                <ThemedText style={[styles.dropdownValue, !address.billType && { color: '#AAA' }]}>
+                  {billLabel || 'Select the type of utility bill'}
+                </ThemedText>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </TouchableOpacity>
+            </View>
+            {fieldError('utility_bill_type')}
+
+            <View style={styles.dropdownContainer}>
+              <ThemedText style={styles.fieldLabel}>Upload a utility bill not older than 6 months (JPG, PNG or PDF, max 5MB)</ThemedText>
               <TouchableOpacity style={styles.dropdownTrigger} onPress={pickUtilityBill}>
                 <ThemedText style={[styles.dropdownValue, !file && { color: '#AAA' }]} numberOfLines={1}>
                   {file?.name || 'Choose file'}
@@ -254,7 +277,7 @@ export default function AddressLoanScreen() {
       >
         <ScrollView style={styles.optionsList}>
           <ThemedText style={styles.optionsHeader}>Select option</ThemedText>
-          {NIGERIAN_STATES.map((state) => (
+          {sheet === 'state' && NIGERIAN_STATES.map((state) => (
             <TouchableOpacity
               key={state}
               style={styles.optionItem}
@@ -266,6 +289,18 @@ export default function AddressLoanScreen() {
               <ThemedText style={styles.optionText}>{state}</ThemedText>
             </TouchableOpacity>
           ))}
+          {sheet === 'billType' && UTILITY_BILL_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={styles.optionItem}
+              onPress={() => {
+                setAddressField('billType', option.value as UtilityBillType);
+                bottomSheetRef.current?.close();
+              }}
+            >
+              <ThemedText style={styles.optionText}>{option.label}</ThemedText>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </BottomSheet>
     </ThemedView>
@@ -273,6 +308,22 @@ export default function AddressLoanScreen() {
 }
 
 const styles = StyleSheet.create({
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#FF7A00',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+  },
+  noticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#000',
+    fontWeight: '600',
+  },
   errorText: {
     color: '#FF3B30',
     fontSize: 12,

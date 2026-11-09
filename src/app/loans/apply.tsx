@@ -5,12 +5,10 @@ import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
 import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
 import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
-import { nextKycRoute } from '@/constants/kyc-routes';
-import { Toast } from '@/shared/ui/molecules/Toast';
-import { isKycCompleted, useKYCStore } from '@/store/useKYCStore';
+import { FALLBACK_MINIMUM_AMOUNT, LOAN_STEPS, formatDate, formatNaira, percent } from '@/constants/loan';
 import { useLoanStore } from '@/store/useLoanStore';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,22 +16,11 @@ import { Shadows } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const MINIMUM_AMOUNT = 1000;
-
-const formatNaira = (value: string | number) =>
-  `₦ ${Number(value).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
-
-// "2026-04-25" -> "25 Apr, 2026"
-const formatDate = (value: string) => {
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-  const month = date.toLocaleString('en-GB', { month: 'short' });
-  return `${date.getDate()} ${month}, ${date.getFullYear()}`;
-};
-
-const percent = (value: string) => `${Number(value)}%`;
+const QUOTE_DELAY_MS = 400;
 
 type DropdownKey = 'purpose' | 'duration';
 
+// Opened by /loans/start once the customer has a borrowing limit.
 export default function ApplyLoanScreen() {
   const router = useRouter();
   const {
@@ -42,15 +29,19 @@ export default function ApplyLoanScreen() {
     reasons,
     tenors,
     quote,
+    eligibility,
     loadOptions,
     getQuote,
-    loadCurrentAddress,
+    getEligibility,
+    applyLoan,
+    resetLoan,
     isLoading,
+    isQuoting,
     error,
     fieldErrors,
   } = useLoanStore();
   const [activeDropdown, setActiveDropdown] = useState<DropdownKey | null>(null);
-  const [isOpeningAddress, setIsOpeningAddress] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const bottomSheetRef = useRef<BottomSheetMethods>(null);
 
   // Purposes and durations come from the backend.
@@ -58,15 +49,29 @@ export default function ApplyLoanScreen() {
     loadOptions().catch(() => undefined);
   }, [loadOptions]);
 
+  const minimumAmount = Number(eligibility?.minimum_amount) || FALLBACK_MINIMUM_AMOUNT;
+  const maximumAmount = Number(eligibility?.eligible_amount || 0);
+  const amountNumber = Number(loanDetails.amount) || 0;
+  const tooLow = amountNumber > 0 && amountNumber < minimumAmount;
+  const tooHigh = amountNumber > maximumAmount;
+  const isFormValid = !!loanDetails.purpose && amountNumber > 0 && !tooLow && !tooHigh && !!loanDetails.duration;
+
+  // Prices the loan once the customer stops typing, like the web.
+  useEffect(() => {
+    if (!isFormValid) return;
+    const timer = setTimeout(() => void getQuote().catch(() => undefined), QUOTE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isFormValid, getQuote, loanDetails.amount, loanDetails.purpose, loanDetails.duration]);
+
+  // Without a borrowing limit there is nothing to apply for yet.
+  if (!eligibility?.can_apply) return <Redirect href="/loans/start" />;
+
   const options: Record<DropdownKey, { value: string; label: string }[]> = {
     purpose: reasons.map((reason) => ({ value: reason.id, label: reason.loan_reason })),
     duration: tenors.map((tenor) => ({ value: String(tenor.months), label: tenor.label })),
   };
   const labelFor = (key: DropdownKey, value: string) =>
     options[key].find((option) => option.value === value)?.label || '';
-
-  const amountNumber = Number(loanDetails.amount) || 0;
-  const isFormValid = !!loanDetails.purpose && amountNumber >= MINIMUM_AMOUNT && !!loanDetails.duration;
 
   // The breakdown is priced by the server (/loan/quote/), as on the web.
   const summaryDetails = quote ? [
@@ -80,32 +85,32 @@ export default function ApplyLoanScreen() {
     { label: 'Date of first payment', value: formatDate(quote.date_of_first_payment) },
   ] : [];
 
+  const canProceed = isFormValid && !!quote && !isQuoting && !isLoading && !isSubmitting;
+
+  // Checks eligibility again right before applying, in case it changed.
   const handleProceed = async () => {
-    if (!isFormValid) return;
-    if (!quote) {
-      const kyc = useKYCStore.getState();
-      if (!isKycCompleted(kyc)) {
-        // Check the server before sending the user back to KYC.
-        await kyc.syncKycProgress();
-        if (!isKycCompleted(useKYCStore.getState())) {
-          Toast.show('Complete your KYC to take a loan.', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
-          router.push((nextKycRoute() ?? '/kyc/phone') as any);
-          return;
-        }
-      }
-      getQuote().catch(() => undefined);
-      return;
-    }
-    setIsOpeningAddress(true);
+    if (!canProceed) return;
+    setIsSubmitting(true);
     try {
-      await loadCurrentAddress();
+      const latest = await getEligibility();
+      if (!latest.can_apply) {
+        router.replace('/loans/start');
+        return;
+      }
+      await applyLoan();
+      resetLoan();
+      // Next: repayment setup and the offer letter.
+      router.replace('/loans/offer');
     } catch {
-      // Without the current address the user can still enter one.
+      // The store shows the error under the form.
     } finally {
-      setIsOpeningAddress(false);
+      setIsSubmitting(false);
     }
-    router.push('/loans/address');
   };
+
+  const amountMessage = fieldErrors.amount
+    || (tooHigh ? `You can borrow up to ${formatNaira(maximumAmount)}.` : null)
+    || (tooLow ? `The minimum amount is ${formatNaira(minimumAmount)}.` : null);
 
   const openDropdown = (key: DropdownKey) => {
     setActiveDropdown(key);
@@ -126,9 +131,9 @@ export default function ApplyLoanScreen() {
               <ThemedText type="title" style={styles.title}>Apply for Loan</ThemedText>
             </View>
             <CircularProgress
-              currentStep={1}
-              totalSteps={2}
-              progress={1 / 2}
+              currentStep={3}
+              totalSteps={LOAN_STEPS}
+              progress={3 / LOAN_STEPS}
               size={60}
             />
           </View>
@@ -149,14 +154,16 @@ export default function ApplyLoanScreen() {
 
             <FloatingLabelInput
               label="How much do you need?"
-              placeholder="₦ 10,000,000"
+              placeholder={`₦ ${maximumAmount.toLocaleString('en-NG')}`}
               keyboardType="numeric"
               value={loanDetails.amount ? Number(loanDetails.amount).toLocaleString('en-NG') : ''}
-              onChangeText={(val) => setLoanField('amount', val.replace(/\D/g, ''))}
+              onChangeText={(val) => setLoanField('amount', val.replace(/\D/g, '').slice(0, 9))}
             />
-            {(fieldErrors.amount || (loanDetails.amount !== '' && amountNumber < MINIMUM_AMOUNT)) && (
-              <ThemedText style={styles.fieldError}>
-                {fieldErrors.amount || `The minimum amount is ${formatNaira(MINIMUM_AMOUNT)}.`}
+            {amountMessage ? (
+              <ThemedText style={styles.fieldError}>{amountMessage}</ThemedText>
+            ) : (
+              <ThemedText style={styles.hint}>
+                Minimum {formatNaira(minimumAmount)} · Up to {formatNaira(maximumAmount)}
               </ThemedText>
             )}
 
@@ -175,6 +182,13 @@ export default function ApplyLoanScreen() {
           </View>
 
           {error && <ThemedText style={styles.fieldError}>{error}</ThemedText>}
+
+          {isFormValid && isQuoting && !quote && (
+            <View style={styles.quoting}>
+              <ActivityIndicator color="#FF7A00" />
+              <ThemedText style={styles.monthlyLabel}>Calculating your repayment…</ThemedText>
+            </View>
+          )}
 
           {quote && (
             <View style={styles.summaryContainer}>
@@ -200,14 +214,14 @@ export default function ApplyLoanScreen() {
           <View style={styles.footer}>
             <Button
               onPress={handleProceed}
-              isLoading={isLoading || isOpeningAddress}
-              disabled={!isFormValid || isLoading || isOpeningAddress}
+              isLoading={isLoading || isSubmitting}
+              disabled={!canProceed}
               width={SCREEN_WIDTH - 48}
               height={56}
-              backgroundColor={isFormValid ? "#FF7A00" : "#FAFAFA"}
+              backgroundColor={canProceed || isSubmitting ? "#FF7A00" : "#FAFAFA"}
               borderRadius={16}
             >
-              <ThemedText style={[styles.buttonText, { color: isFormValid ? "#FFF" : "#AAA" }]}>{quote ? 'Continue' : 'Proceed'}</ThemedText>
+              <ThemedText style={[styles.buttonText, { color: canProceed ? "#FFF" : "#AAA" }]}>Proceed</ThemedText>
             </Button>
           </View>
         </ScrollView>
@@ -243,6 +257,19 @@ export default function ApplyLoanScreen() {
 }
 
 const styles = StyleSheet.create({
+  hint: {
+    color: '#1E9F85',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  quoting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 24,
+  },
   fieldError: {
     color: '#FF3B30',
     fontSize: 12,
