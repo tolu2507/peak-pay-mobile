@@ -13,6 +13,8 @@ interface AuthState {
   isAuthenticated: boolean;
   setAuth: (token: string, user: any, refreshToken?: string, loanAmount?: number) => void;
   setLoanAmount: (amount: number) => void;
+  // Merge fresh profile fields (e.g. from /users/me/) into the saved user.
+  updateUser: (fields: Record<string, any>) => void;
   logout: () => Promise<void>;
   clearSession: () => void;
 }
@@ -33,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
         ...(loanAmount !== undefined ? { loanAmount } : {}),
       }),
       setLoanAmount: (amount) => set({ loanAmount: amount }),
+      updateUser: (fields) => set((state) => ({ user: { ...(state.user || {}), ...fields } })),
       clearSession: () => {
         // The KYC store isn't persisted, but must not leak to the next user.
         useKYCStore.getState().resetKYC();

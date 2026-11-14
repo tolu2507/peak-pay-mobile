@@ -43,6 +43,20 @@
             "image": "./assets/images/splash-icon.png"
           }
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow PeakPay to use Face ID so you can sign in quickly and securely."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow PeakPay to access your photos so you can set a profile picture.",
+          "cameraPermission": "Allow PeakPay to use your camera to take a profile picture."
+        }
       ]
     ],
     "experiments": {

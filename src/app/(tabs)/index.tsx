@@ -12,7 +12,8 @@ import { nextKycRoute } from '@/constants/kyc-routes';
 import { isKycCompleted, useKYCStore } from '@/store/useKYCStore';
 import { useLoanStore } from '@/store/useLoanStore';
 import { useSignupStore } from '@/store/useSignupStore';
-import userService, { type UserProfile } from '@/api/services/user.service';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { UserAvatar } from '@/components/user-avatar';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Shadows } from '@/constants/theme';
@@ -37,25 +38,10 @@ export default function HomeScreen() {
     : 0;
   const isPaidOut = application?.disbursement_status === 'disbursed';
   const [filter, setFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const { fullName, initials, photo, loading: profileLoading } = useCurrentUser();
   // True until the first KYC/loan sync settles, so the cards don't flash the
   // wrong state while we wait for the server.
   const [booting, setBooting] = useState(true);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const data = await userService.getMe();
-        setProfile(data);
-      } catch (error) {
-        console.error('Failed to fetch profile:', error);
-      } finally {
-        setProfileLoading(false);
-      }
-    };
-    fetchProfile();
-  }, []);
 
   // KYC progress and the loan status live on the server; refresh them each
   // time the tab is shown (e.g. after finishing a KYC step).
@@ -71,9 +57,8 @@ export default function HomeScreen() {
 
   const openKyc = () => router.push((nextKycRoute() ?? '/kyc/phone') as any);
 
-  const displayName = profile?.first_name 
-    ? `${profile.first_name} ${profile.last_name || ''}` 
-    : (form.firstName && form.lastName ? `${form.firstName} ${form.lastName}` : 'User');
+  const displayName = fullName
+    || (form.firstName && form.lastName ? `${form.firstName} ${form.lastName}` : 'there');
 
   // Loan transactions (payouts and repayments), 20 a page like the web.
   const [txItems, setTxItems] = useState<LoanTransaction[]>([]);
@@ -127,15 +112,26 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
-            <View>
-              {profileLoading && !form.firstName ? (
-                <Skeleton width={180} height={22} radius={8} style={{ marginBottom: 14 }} />
-              ) : (
-                <ThemedText type="title" style={styles.greeting}>Hi, {displayName}</ThemedText>
-              )}
-              <ThemedText style={styles.subGreeting}>Ready to start a new day with us?</ThemedText>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+                <UserAvatar photo={photo} initials={initials} size={44} />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                {profileLoading && !fullName && !form.firstName ? (
+                  <Skeleton width={160} height={22} radius={8} style={{ marginBottom: 14 }} />
+                ) : (
+                  <ThemedText type="title" style={styles.greeting} numberOfLines={1}>Hi, {displayName}</ThemedText>
+                )}
+                <ThemedText style={styles.subGreeting}>Ready to start a new day with us?</ThemedText>
+              </View>
             </View>
-
+            <TouchableOpacity
+              style={styles.notificationBtn}
+              onPress={() => router.push('/notifications' as any)}
+              accessibilityLabel="Notifications"
+            >
+              <Ionicons name="notifications-outline" size={22} color="#000" />
+            </TouchableOpacity>
           </View>
 
           {booting && (
@@ -315,7 +311,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100, // Extra space for bottom tabs
+    paddingBottom: 140, // Extra space for bottom tabs
   },
   header: {
     flexDirection: 'row',
@@ -323,6 +319,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 20,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    marginRight: 12,
   },
   greeting: {
     fontSize: 20,

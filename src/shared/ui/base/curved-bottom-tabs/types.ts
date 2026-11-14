@@ -54,6 +54,7 @@ interface BackgroundCurveProps {
   position: SharedValue<number>;
   gradient: readonly [string, string];
   height: number;
+  readonly insetHeight?: number;
 }
 
 interface StyleConfig {
@@ -62,6 +63,7 @@ interface StyleConfig {
   readonly fontFamily?: string;
   readonly inactiveColor: string;
   readonly labelColor: string;
+  readonly bottomInset?: number;
 }
 
 type GradientTuple = readonly [string, string];

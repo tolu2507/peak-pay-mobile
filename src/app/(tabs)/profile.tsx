@@ -8,6 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/useAuthStore';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { Shadows } from '@/constants/theme';
+import { useCurrentUser } from '@/hooks/use-current-user';
+import { UserAvatar } from '@/components/user-avatar';
+import { Skeleton } from '@/shared/ui/base/skeleton';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -33,15 +36,9 @@ const SettingItem = ({ icon, label, onPress, color = '#000', showChevron = true 
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
-  
-  const firstName = user?.first_name || user?.firstName || '';
-  const lastName = user?.last_name || user?.lastName || '';
-  const email = user?.email || '';
-
-  const displayName = firstName || lastName ? `${firstName} ${lastName}`.trim() : 'Peakpay User';
-  const initial1 = firstName ? firstName[0].toUpperCase() : 'P';
-  const initial2 = lastName ? lastName[0].toUpperCase() : '';
+  const { logout } = useAuthStore();
+  // Real name from /users/me/ (the login response may only carry the email).
+  const { fullName, email, initials, photo, loading, changePhoto } = useCurrentUser();
 
   const handleLogout = async () => {
     await logout();
@@ -59,14 +56,18 @@ export default function ProfileScreen() {
 
           {/* User Profile Card */}
           <View style={styles.profileCard}>
-            <View style={styles.avatarContainer}>
-              <ThemedText style={styles.avatarText}>{initial1}{initial2}</ThemedText>
-            </View>
+            <TouchableOpacity style={styles.avatarContainer} onPress={changePhoto} activeOpacity={0.8}>
+              <UserAvatar photo={photo} initials={initials} size={60} />
+            </TouchableOpacity>
             <View style={styles.userInfo}>
-              <ThemedText style={styles.userName}>{displayName}</ThemedText>
+              {loading && !fullName ? (
+                <Skeleton width={140} height={18} radius={6} style={{ marginBottom: 8 }} />
+              ) : (
+                <ThemedText style={styles.userName}>{fullName || email}</ThemedText>
+              )}
               <ThemedText style={styles.userEmail}>{email}</ThemedText>
             </View>
-            <TouchableOpacity style={styles.editBtn}>
+            <TouchableOpacity style={styles.editBtn} onPress={changePhoto}>
               <Ionicons name="create-outline" size={20} color="#FF7A00" />
             </TouchableOpacity>
           </View>
@@ -74,22 +75,22 @@ export default function ProfileScreen() {
           {/* Settings Sections */}
           <View style={styles.section}>
             <ThemedText style={styles.sectionHeader}>Personal Settings</ThemedText>
-            <SettingItem icon="person-outline" label="Account Information" onPress={() => {}} />
-            <SettingItem icon="card-outline" label="Linked Bank Accounts" onPress={() => {}} />
+            <SettingItem icon="person-outline" label="Account Information" onPress={() => router.push('/account' as any)} />
+            {/* Hidden for now; no linked-accounts screen yet.
+            <SettingItem icon="card-outline" label="Linked Bank Accounts" onPress={() => {}} /> */}
             <SettingItem icon="gift-outline" label="Referrals" onPress={() => router.push('/referrals')} />
-            <SettingItem icon="notifications-outline" label="Notifications" onPress={() => {}} />
           </View>
 
           <View style={styles.section}>
             <ThemedText style={styles.sectionHeader}>Security</ThemedText>
-            <SettingItem icon="lock-closed-outline" label="Change Transaction PIN" onPress={() => {}} />
-            <SettingItem icon="finger-print-outline" label="Biometric Authentication" onPress={() => {}} />
+            <SettingItem icon="lock-closed-outline" label="Change Transaction PIN" onPress={() => router.push('/change-pin' as any)} />
+            <SettingItem icon="finger-print-outline" label="Biometric Authentication" onPress={() => router.push('/biometrics' as any)} />
           </View>
 
           <View style={styles.section}>
             <ThemedText style={styles.sectionHeader}>Support & More</ThemedText>
             <SettingItem icon="help-circle-outline" label="Help Center" onPress={() => {}} />
-            <SettingItem icon="document-text-outline" label="Terms & Conditions" onPress={() => {}} />
+            <SettingItem icon="document-text-outline" label="Terms & Conditions" onPress={() => router.push('/legal?url=https://www.mypeakpay.com/terms&title=Terms%20and%20Conditions' as any)} />
             <SettingItem icon="log-out-outline" label="Log Out" onPress={handleLogout} color="#FF3B30" showChevron={false} />
           </View>
         </ScrollView>
@@ -108,7 +109,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
+    // Clear the floating tab bar.
+    paddingBottom: 140,
   },
   header: {
     flexDirection: 'row',
@@ -135,7 +137,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FF7A00',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,

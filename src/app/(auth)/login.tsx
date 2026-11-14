@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Dimensions, TextInput, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Dimensions, TextInput, ScrollView, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
@@ -10,6 +11,14 @@ import { useLoginStore } from '@/store/useLoginStore';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { DarkIcon } from '@/assets/svg/darkicon';
 import { FloatingLabelInput } from '@/shared/ui/molecules/floating-label-input';
+import {
+  disableBiometricLogin,
+  enableBiometricLogin,
+  getBiometricSupport,
+  getSavedBiometricEmail,
+  unlockCredentials,
+  type BiometricSupport,
+} from '@/lib/biometrics';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -18,6 +27,21 @@ export default function LoginScreen() {
   const setAuth = useAuthStore((state) => state.setAuth);
   const { email, password, setEmail, setPassword, login, isLoading, notice } = useLoginStore();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  // Set when this phone has biometric sign-in turned on (Profile > Security).
+  const [biometric, setBiometric] = useState<(BiometricSupport & { email: string }) | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const [savedEmail, support] = await Promise.all([getSavedBiometricEmail(), getBiometricSupport()]);
+      if (savedEmail && support.available) setBiometric({ ...support, email: savedEmail });
+    })();
+  }, []);
+
+  const finishLogin = () => {
+    useLoginStore.getState().setNotice(null);
+    Toast.show('Login successful!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
+    router.replace('/(tabs)');
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -27,11 +51,32 @@ export default function LoginScreen() {
 
     try {
       await login();
-      useLoginStore.getState().setNotice(null);
-      Toast.show('Login successful!', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      router.replace('/(tabs)');
+      // Keep the saved biometric password current (e.g. after a reset).
+      if (biometric && biometric.email.toLowerCase() === email.trim().toLowerCase()) {
+        await enableBiometricLogin({ email: biometric.email, password }).catch(() => undefined);
+      }
+      finishLogin();
     } catch (error) {
       // Error is handled by store and apiClient (which shows Toast)
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    const creds = await unlockCredentials();
+    if (!creds) return;
+    setEmail(creds.email);
+    setPassword(creds.password);
+    try {
+      await login();
+      finishLogin();
+    } catch (error: any) {
+      // The saved password no longer works (changed elsewhere): forget it.
+      if (error?.response?.status === 400 || error?.response?.status === 401) {
+        await disableBiometricLogin();
+        setBiometric(null);
+        setPassword('');
+        Toast.show(`Your password has changed. Log in with it, then turn ${biometric?.label ?? 'biometrics'} back on in Profile.`, { type: 'error', position: "top", backgroundColor: "#FF3B30" });
+      }
     }
   };
 
@@ -91,6 +136,13 @@ export default function LoginScreen() {
               <ThemedText style={styles.buttonText}>Log In</ThemedText>
             </Button>
             
+            {biometric && (
+              <TouchableOpacity style={styles.biometricBtn} onPress={handleBiometricLogin} disabled={isLoading}>
+                <Ionicons name={biometric.icon} size={22} color="#FF7A00" />
+                <ThemedText style={styles.biometricText}>Sign in with {biometric.label}</ThemedText>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.signupContainer}>
               <ThemedText style={styles.signupText}>
                 Don’t have an account? <ThemedText style={styles.linkText} onPress={() => router.push('/(auth)/signup')}>Sign Up</ThemedText>
@@ -158,6 +210,23 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#FFF',
     fontSize: 18,
+    fontWeight: '700',
+  },
+  biometricBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    height: 56,
+    width: SCREEN_WIDTH - 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FF7A00',
+  },
+  biometricText: {
+    color: '#FF7A00',
+    fontSize: 16,
     fontWeight: '700',
   },
   signupContainer: {

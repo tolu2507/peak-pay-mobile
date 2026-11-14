@@ -13,6 +13,7 @@ import type {
 } from '../api/services/kyc.service';
 import OtpService from '../api/services/otp.service';
 import UserService from '../api/services/user.service';
+import { saveTransactionPinId } from '@/lib/transaction-pin';
 
 interface KYCState {
   currentStep: number;
@@ -256,7 +257,7 @@ interface KycApiError {
   message?: string;
 }
 
-const getKycErrorMessage = (error: unknown, fallback: string) => {
+export const getKycErrorMessage = (error: unknown, fallback: string) => {
   const apiError = error as KycApiError;
   const data = apiError.response?.data;
   if (data && typeof data === 'object' && Array.isArray(data.errors)) {
@@ -836,7 +837,10 @@ export const useKYCStore = create<KYCState>((set, get) => ({
   createTransactionPin: async (pin: string) => {
     set({ isLoading: true, error: null });
     try {
-      await KycService.createTransactionPin(pin);
+      const created = await KycService.createTransactionPin(pin);
+      // There is no endpoint to look the PIN up later; keep its id so the
+      // PIN can be changed from Profile.
+      await saveTransactionPinId(created?.id ?? created?.data?.id);
     } catch (error: any) {
       // A PIN saved by an earlier attempt (e.g. a retry after a timeout)
       // means this step is already done.

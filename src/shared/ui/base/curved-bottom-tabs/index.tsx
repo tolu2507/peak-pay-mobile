@@ -37,6 +37,7 @@ import {
   VIEWPORT_WIDTH,
 } from "./helper";
 import { interFamily } from '@/constants/fonts';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const FloatingButtonComponent: React.FC<FloatingButtonComponentProps> =
   memo<FloatingButtonComponentProps>(
@@ -122,7 +123,7 @@ const FloatingButtonComponent: React.FC<FloatingButtonComponentProps> =
 
 const BackgroundCurve: React.FC<BackgroundCurveProps> =
   memo<BackgroundCurveProps>(
-    ({ position, gradient, height }: BackgroundCurveProps) => {
+    ({ position, gradient, height, insetHeight = 0 }: BackgroundCurveProps) => {
       const screenWidth = Math.ceil(VIEWPORT_WIDTH * 100);
       const totalWidth = screenWidth * 3;
       const centerOffset = screenWidth;
@@ -133,7 +134,7 @@ const BackgroundCurve: React.FC<BackgroundCurveProps> =
       const leftEdge = (133 / origWidth) * curveWidth;
       const rightEdge = (258 / origWidth) * curveWidth;
       const center = (197 / origWidth) * curveWidth;
-      const notchHeight = (43.5 / origHeight) * height;
+      const notchHeight = (43.5 / origHeight) * (height - insetHeight);
       const leftControl1 = (159.724 / origWidth) * curveWidth;
       const leftControl2 = (172.684 / origWidth) * curveWidth;
       const rightControl1 = (220.932 / origWidth) * curveWidth;
@@ -220,6 +221,9 @@ const CurvedBottomTabsCore: React.FC<CurvedBottomTabsProps> =
       },
     }: CurvedBottomTabsProps) => {
       const [keyboardVisible, setKeyboardVisible] = useState<boolean>(false);
+      // Lift the bar above the home indicator / Android gesture bar so the
+      // tabs stay tappable on every device.
+      const { bottom: bottomInset } = useSafeAreaInsets();
 
       const curvePosition = useSharedValue<number>(0);
       const floatingAnimations = useRef<SharedValue<number>[]>(
@@ -287,6 +291,7 @@ const CurvedBottomTabsCore: React.FC<CurvedBottomTabsProps> =
         fontFamily,
         inactiveColor,
         labelColor,
+        bottomInset,
       });
 
       if (hideWhenKeyboardShown && keyboardVisible) {
@@ -299,7 +304,8 @@ const CurvedBottomTabsCore: React.FC<CurvedBottomTabsProps> =
             <BackgroundCurve
               position={curvePosition}
               gradient={processedGradient}
-              height={Math.ceil(VIEWPORT_HEIGHT * barHeight)}
+              height={Math.ceil(VIEWPORT_HEIGHT * barHeight) + bottomInset}
+              insetHeight={bottomInset}
             />
           </View>
 
@@ -363,6 +369,7 @@ const createStyles = <T extends StyleConfig>({
   barHeight,
   textSize,
   fontFamily,
+  bottomInset = 0,
   ...props
 }: T) =>
   StyleSheet.create({
@@ -372,7 +379,8 @@ const createStyles = <T extends StyleConfig>({
       alignSelf: "center",
       backgroundColor: "transparent",
       justifyContent: "space-between",
-      height: Math.ceil(VIEWPORT_HEIGHT * barHeight),
+      height: Math.ceil(VIEWPORT_HEIGHT * barHeight) + bottomInset,
+      paddingBottom: bottomInset,
       flexDirection: "row",
       width: "100%",
     },
@@ -390,7 +398,8 @@ const createStyles = <T extends StyleConfig>({
       alignItems: "center",
       justifyContent: "center",
       flex: 1,
-      paddingBottom: Platform.OS === "ios" ? VIEWPORT_HEIGHT * 0.98 : 0,
+      // Small breathing room only when the device has no inset of its own.
+      paddingBottom: bottomInset > 0 ? 0 : Platform.OS === "ios" ? VIEWPORT_HEIGHT * 0.98 : 0,
     },
     tabLabel: {
       fontSize: textSize,
