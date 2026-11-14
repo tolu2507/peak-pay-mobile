@@ -30,6 +30,7 @@
     "plugins": [
       "expo-router",
       "./withMLKitDependencies.js",
+      "./withKotlinCompat.js",
       [
         "expo-splash-screen",
         {
