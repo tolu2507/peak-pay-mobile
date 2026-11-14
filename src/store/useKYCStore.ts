@@ -78,7 +78,8 @@ interface KYCState {
   loadBanks: () => Promise<void>;
   loadBankAccount: () => Promise<void>;
   resolveBankAccount: (accountNumber: string, bankCode: string, signal: AbortSignal) => Promise<ResolvedBankAccount>;
-  saveBankAccount: (resolved: ResolvedBankAccount, phone: string) => Promise<BankDetailsRecord>;
+  // A different bank is added as a new account and needs a code and the PIN.
+  saveBankAccount: (resolved: ResolvedBankAccount, phone: string, confirm?: { otpCode: string; pin: string }) => Promise<BankDetailsRecord>;
   setKYCComplete: (value: boolean) => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -325,6 +326,12 @@ export function isKycCompleted(state: KYCState) {
   return state.isKYCComplete || getKycSteps(state).every((step) => step.completed);
 }
 
+// Loans need every KYC step done except phone verification, which is
+// deliberately exempt. The server's is_complete flag is authoritative when set.
+export function isLoanKycReady(state: KYCState) {
+  return state.isKYCComplete || getKycSteps(state).every((step) => step.id === 'phone' || step.completed);
+}
+
 export const useKYCStore = create<KYCState>((set, get) => ({
   currentStep: 1,
   phone: '',
@@ -501,7 +508,7 @@ export const useKYCStore = create<KYCState>((set, get) => ({
       throw new Error(getKycErrorMessage(error, 'Could not resolve the account name.'));
     }
   },
-  saveBankAccount: async (resolved, phone) => {
+  saveBankAccount: async (resolved, phone, confirm) => {
     const phoneNumber = normalizeNigerianPhone(phone);
     if (!phoneNumber) throw new Error('Enter a valid Nigerian phone number.');
     // Account details come from the resolve response, never from user input.
@@ -513,11 +520,19 @@ export const useKYCStore = create<KYCState>((set, get) => ({
       phone_number: phoneNumber,
     };
     const existing = get().bankAccount;
+    const sameAccount = existing
+      && existing.bank_code === data.bank_code
+      && existing.account_number === data.account_number;
     set({ isLoading: true, error: null });
     try {
-      const response = existing
-        ? await KycService.patchBankDetails(existing.id, data)
-        : await KycService.createBankDetails(data);
+      // Accounts are never edited to point elsewhere: only the phone number
+      // changes on the same account, and a different bank is a new account.
+      const response = sameAccount
+        ? await KycService.patchBankDetails(existing.id, { phone_number: data.phone_number })
+        : await KycService.createBankDetails({
+          ...data,
+          ...(confirm ? { otp_code: confirm.otpCode, transaction_pin: confirm.pin } : {}),
+        });
       const bankAccount: BankDetailsRecord = response.data;
       set((state) => ({
         bankAccount,

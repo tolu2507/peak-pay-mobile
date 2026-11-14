@@ -1,6 +1,7 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { LoanHeader, OutlineButton, PrimaryButton, loanStyles as ls } from '@/components/loans/loan-ui';
+import { LoanHeader, OutlineButton, PrimaryButton, TextLink, loanStyles as ls } from '@/components/loans/loan-ui';
+import { EligibilityReviewCard } from '@/components/loans/eligibility-review-card';
 import { useLoanStore } from '@/store/useLoanStore';
 import { Ionicons } from '@expo/vector-icons';
 import { Redirect, useRouter } from 'expo-router';
@@ -25,18 +26,19 @@ export default function LoanStatusScreen() {
         <ScrollView contentContainerStyle={ls.scrollContent} showsVerticalScrollIndicator={false}>
           <LoanHeader title={applicationOpen ? 'Application open' : 'Review in progress'} step={applicationOpen ? undefined : 2} />
 
-          <View style={styles.icon}>
-            <Ionicons name="time-outline" size={36} color="#FF7A00" />
-          </View>
-
-          <ThemedText style={styles.title}>
-            {applicationOpen ? 'Your loan application is open' : 'We are reviewing your documents'}
-          </ThemedText>
-          <ThemedText style={[ls.body, styles.center]}>
-            {applicationOpen
-              ? 'Your current application is awaiting a decision. You can request another loan once it is closed.'
-              : 'We have your address and bank statement and are working out your borrowing limit. It will show here and on your dashboard once the review is done.'}
-          </ThemedText>
+          {applicationOpen ? (
+            <>
+              <View style={styles.icon}>
+                <Ionicons name="time-outline" size={36} color="#FF7A00" />
+              </View>
+              <ThemedText style={styles.title}>Your loan application is open</ThemedText>
+              <ThemedText style={[ls.body, styles.center]}>
+                Your current application is awaiting a decision. You can request another loan once it is closed.
+              </ThemedText>
+            </>
+          ) : (
+            <EligibilityReviewCard />
+          )}
 
           <View style={ls.footer}>
             {applicationOpen ? (
@@ -45,6 +47,7 @@ export default function LoanStatusScreen() {
               <>
                 <PrimaryButton label="Check review status" onPress={() => router.replace('/loans/start')} />
                 <OutlineButton label="Update documents" onPress={() => router.replace('/loans/address')} />
+                <TextLink label="Return to dashboard" onPress={() => router.replace('/(tabs)')} />
               </>
             )}
           </View>

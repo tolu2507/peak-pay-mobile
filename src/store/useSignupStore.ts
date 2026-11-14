@@ -60,6 +60,16 @@ const initialForm = {
   securityQuestion2Id: '',
 };
 
+// Reads the text from an OTP error response. Validation errors arrive as
+// { errors: [{ code, detail, attr }] } rather than a top-level message.
+const getOtpErrorMessage = (error: any, fallback: string): string => {
+  const data = error.response?.data;
+  const details = Array.isArray(data?.errors)
+    ? data.errors.map((e: any) => e.detail || e.message).filter(Boolean).join(' ')
+    : '';
+  return details || data?.detail || data?.message || fallback;
+};
+
 export const useSignupStore = create<SignupState>()(
   persist(
   (set, get) => ({
@@ -97,7 +107,7 @@ export const useSignupStore = create<SignupState>()(
       console.log(response)
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'Failed to send OTP' });
+      set({ error: getOtpErrorMessage(error, 'Failed to send OTP') });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -117,7 +127,7 @@ export const useSignupStore = create<SignupState>()(
       });
       return response;
     } catch (error: any) {
-      set({ error: error.response?.data?.message || 'OTP verification failed' });
+      set({ error: getOtpErrorMessage(error, 'OTP verification failed') });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -179,6 +189,11 @@ export const useSignupStore = create<SignupState>()(
           if (alreadyVerified) {
             set({ error: null });
             return { alreadyVerified: true };
+          }
+          // A code was sent moments ago and is still valid, so go verify it.
+          if (otpErr.response?.status === 429) {
+            set({ error: null });
+            return { requiresOtpVerification: true };
           }
           console.error("Failed to send OTP to existing user", otpErr);
         }

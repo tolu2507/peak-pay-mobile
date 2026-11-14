@@ -84,6 +84,13 @@ export interface LoanEligibility {
   eligible_amount: string | null;
 }
 
+export interface LoanTransaction {
+  id: string;
+  date: string;
+  narration: string;
+  amount: string;
+}
+
 export const UTILITY_BILL_OPTIONS = [
   { value: 'electricity', label: 'Electricity bill' },
   { value: 'water', label: 'Water bill' },
@@ -161,9 +168,19 @@ class LoanService {
     return response.data.data;
   }
 
+  async getTransactions(signal?: AbortSignal): Promise<LoanTransaction[]> {
+    const response = await apiClient.get('/loan/applications/transactions/', { ...inline, signal });
+    return response.data.data;
+  }
+
+  async getTransactionPage(page: number, signal?: AbortSignal): Promise<{ results: LoanTransaction[]; next: boolean; previous: boolean }> {
+    const response = await apiClient.get('/loan/applications/transactions/', { ...inline, signal, params: { page, page_size: 20 } });
+    return { results: response.data.data, next: Boolean(response.data.next), previous: Boolean(response.data.previous) };
+  }
+
   // Newest first.
-  async getLoans(): Promise<LoanApplication[]> {
-    const response = await apiClient.get('/loan/applications/');
+  async getLoans(pageSize = 100): Promise<LoanApplication[]> {
+    const response = await apiClient.get('/loan/applications/', { params: { page_size: pageSize } });
     return response.data.data;
   }
 
@@ -179,10 +196,17 @@ class LoanService {
   }
 
   // Accepts the offer; loans below the automatic limit are then paid out.
-  async acceptOffer(id: string, otpCode: string, transactionPin: string): Promise<LoanApplication> {
+  // A wrong PIN uses up the code, so the caller must request a new one.
+  // payoutAccountId: which of the customer's accounts to pay into (any bank);
+  // without it, the account shown as payout_account.
+  async acceptOffer(id: string, otpCode: string, transactionPin: string, payoutAccountId?: string): Promise<LoanApplication> {
     const response = await apiClient.post(
       `/loan/applications/${id}/accept-offer/`,
-      { otp_code: otpCode, transaction_pin: transactionPin },
+      {
+        otp_code: otpCode,
+        transaction_pin: transactionPin,
+        ...(payoutAccountId ? { payout_bank_account: payoutAccountId } : {}),
+      },
       inline,
     );
     return response.data.data;

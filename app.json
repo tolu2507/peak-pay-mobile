@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "peak-pay",
+    "name": "PeakPay",
     "slug": "peak-pay",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,18 +8,20 @@
     "scheme": "peakpay",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.tolulopeb.peakpay"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.tolulopeb.peakpay",
+      "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FF7A00",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.tolulopeb.peakpay"
+      "package": "com.tolulopeb.peakpay",
+      "icon": "./assets/images/icon.png"
     },
     "web": {
       "output": "static",
@@ -31,10 +33,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
+          "backgroundColor": "#FF7A00",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#FF7A00",
+            "image": "./assets/images/splash-icon.png"
           }
         }
       ]

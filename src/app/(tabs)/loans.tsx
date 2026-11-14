@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
+import { ScreenSkeleton } from '@/shared/ui/base/skeleton';
 import {
   StyleSheet,
   View,
@@ -111,10 +112,7 @@ export default function LoansScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF7A00" />
-            <ThemedText style={styles.loadingText}>Loading loan details…</ThemedText>
-          </View>
+          <ScreenSkeleton style={{ paddingHorizontal: 20, paddingTop: 24 }} />
         </SafeAreaView>
       </ThemedView>
     );
@@ -135,7 +133,7 @@ export default function LoansScreen() {
           <View style={styles.emptyContent}>
             <View style={styles.illustrationContainer}>
               <Image 
-                source={require('@/assets/images/peakpay_logo.jpg')}
+                source={require('@/assets/images/logo-mark-orange.png')}
                 style={styles.illustration}
                 resizeMode="contain"
               />
@@ -372,7 +370,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
   },
   header: {
     flexDirection: 'row',
@@ -408,7 +406,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: '#4B4B55',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 40,
@@ -475,7 +473,7 @@ const styles = StyleSheet.create({
   },
   progressAmount: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
   },
   progressAmountBold: {
     fontWeight: '700',
@@ -483,7 +481,7 @@ const styles = StyleSheet.create({
   },
   progressPercent: {
     fontSize: 13,
-    color: '#666',
+    color: '#4B4B55',
     fontWeight: '600',
   },
   progressBarTrack: {
@@ -502,7 +500,7 @@ const styles = StyleSheet.create({
   },
   paymentLabel: {
     fontSize: 13,
-    color: '#666',
+    color: '#4B4B55',
     fontWeight: '500',
   },
   paymentValue: {
@@ -558,7 +556,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   offerLink: {
-    color: '#666',
+    color: '#4B4B55',
     fontSize: 12,
     fontWeight: '600',
     textDecorationLine: 'underline',
@@ -592,7 +590,7 @@ const styles = StyleSheet.create({
   },
   scheduleItemDate: {
     fontSize: 12,
-    color: '#888',
+    color: '#6E6E78',
     marginTop: 2,
   },
   statusPill: {
@@ -624,7 +622,7 @@ const styles = StyleSheet.create({
   },
   emptyScheduleText: {
     fontSize: 12,
-    color: '#888',
+    color: '#6E6E78',
     textAlign: 'center',
     paddingVertical: 12,
   },
@@ -663,7 +661,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 11,
-    color: '#666',
+    color: '#4B4B55',
     lineHeight: 18,
   },
   greetingText: {
@@ -688,7 +686,7 @@ const styles = StyleSheet.create({
   },
   termKey: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
   },
   termVal: {
     fontSize: 12,

@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: '#666',
+    color: '#4B4B55',
     marginTop: 12,
     lineHeight: 24,
     fontWeight: '400',
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   },
   timerText: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
   },
   resendOptions: {
     marginTop: 12,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   },
   congratsSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     textAlign: 'center',
   },
 });

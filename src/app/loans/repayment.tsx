@@ -1,3 +1,5 @@
+import { PopTextInput } from '@/shared/ui/base/pop-text-input';
+import { SkeletonCard, SkeletonGroup, SkeletonHero, SkeletonList } from '@/shared/ui/base/skeleton';
 import RepaymentService, {
   describeRepayment,
   type Installment,
@@ -124,10 +126,11 @@ export default function RepaymentScreen() {
             {!!notice && <Notice tone="success" text={notice} />}
 
             {loading ? (
-              <View style={styles.loading}>
-                <ActivityIndicator color={ORANGE} />
-                <ThemedText style={ls.body}>Loading your repayments…</ThemedText>
-              </View>
+              <SkeletonGroup style={{ gap: 20 }}>
+                <SkeletonHero />
+                <SkeletonCard lines={2} />
+                <SkeletonList rows={3} />
+              </SkeletonGroup>
             ) : summary && (
               <>
                 <Balances summary={summary} />
@@ -414,7 +417,7 @@ function BankTransferPanel({
 
       <View>
         <ThemedText style={ls.fieldLabel}>Amount sent (₦)</ThemedText>
-        <TextInput
+        <PopTextInput
           style={ls.input}
           keyboardType="decimal-pad"
           value={form.amount}
@@ -424,21 +427,21 @@ function BankTransferPanel({
       <View style={styles.row}>
         <View style={{ flex: 3 }}>
           <ThemedText style={ls.fieldLabel}>Date sent</ThemedText>
-          <TextInput style={ls.input} placeholder="YYYY-MM-DD" placeholderTextColor="#AAA" value={form.date} onChangeText={(date) => setForm({ ...form, date })} />
+          <PopTextInput style={ls.input} placeholder="YYYY-MM-DD" placeholderTextColor="#8E8E93" value={form.date} onChangeText={(date) => setForm({ ...form, date })} />
         </View>
         <View style={{ flex: 2 }}>
           <ThemedText style={ls.fieldLabel}>Time</ThemedText>
-          <TextInput style={ls.input} placeholder="HH:MM" placeholderTextColor="#AAA" value={form.time} onChangeText={(time) => setForm({ ...form, time })} />
+          <PopTextInput style={ls.input} placeholder="HH:MM" placeholderTextColor="#8E8E93" value={form.time} onChangeText={(time) => setForm({ ...form, time })} />
         </View>
       </View>
       {!paidAt && <ThemedText style={ls.errorText}>Enter when you sent it, e.g. 2026-11-09 and 14:05. It can&apos;t be in the future.</ThemedText>}
       <View>
         <ThemedText style={ls.fieldLabel}>Name on the sending account</ThemedText>
-        <TextInput style={ls.input} maxLength={255} value={form.senderName} onChangeText={(senderName) => setForm({ ...form, senderName })} />
+        <PopTextInput style={ls.input} maxLength={255} value={form.senderName} onChangeText={(senderName) => setForm({ ...form, senderName })} />
       </View>
       <View>
         <ThemedText style={ls.fieldLabel}>Transfer reference (optional)</ThemedText>
-        <TextInput style={ls.input} maxLength={100} autoCapitalize="none" value={form.reference} onChangeText={(reference) => setForm({ ...form, reference })} />
+        <PopTextInput style={ls.input} maxLength={100} autoCapitalize="none" value={form.reference} onChangeText={(reference) => setForm({ ...form, reference })} />
       </View>
       <View>
         <ThemedText style={ls.fieldLabel}>Receipt (optional, PDF, JPG or PNG up to 5MB)</ThemedText>
@@ -505,7 +508,7 @@ const styles = StyleSheet.create({
   balances: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   balance: { flexGrow: 1, flexBasis: '45%', backgroundColor: '#F3F4F6', borderRadius: 12, padding: 14, gap: 4 },
   balanceValue: { fontSize: 18, fontWeight: '700', color: '#000' },
-  small: { fontSize: 12, color: '#666' },
+  small: { fontSize: 12, color: '#4B4B55' },
   option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#F0F0F0', borderRadius: 12, padding: 14 },
   optionTitle: { fontSize: 14, fontWeight: '600', color: '#000' },
   accountNumber: { fontSize: 20, fontWeight: '700', color: '#000', letterSpacing: 1 },

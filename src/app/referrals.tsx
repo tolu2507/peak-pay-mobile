@@ -1,4 +1,5 @@
 import { ThemedText } from '@/components/themed-text';
+import { Skeleton, SkeletonCard, SkeletonGroup } from '@/shared/ui/base/skeleton';
 import { ThemedView } from '@/components/themed-view';
 import UserService, { type ReferralSummary } from '@/api/services/user.service';
 import { Button } from '@/shared/ui/base/button';
@@ -45,7 +46,7 @@ export default function ReferralsScreen() {
   const stats = [
     { label: 'Total referrals', hint: 'Friends who signed up with your code', value: total, icon: 'people-outline', color: '#FF7A00', background: '#FFF7ED' },
     { label: 'Completed KYC', hint: 'Finished every verification step', value: completed, icon: 'shield-checkmark-outline', color: '#1E9F85', background: '#ECFDF5' },
-    { label: 'Pending KYC', hint: 'Signed up but still verifying', value: Math.max(total - completed, 0), icon: 'hourglass-outline', color: '#666', background: '#F9F9F9' },
+    { label: 'Pending KYC', hint: 'Signed up but still verifying', value: Math.max(total - completed, 0), icon: 'hourglass-outline', color: '#4B4B55', background: '#F9F9F9' },
   ] as const;
 
   return (
@@ -66,7 +67,10 @@ export default function ReferralsScreen() {
           <ThemedText style={styles.description}>Track friends you've invited to Peakpay</ThemedText>
 
           {isLoading ? (
-            <ActivityIndicator size="large" color="#FF7A00" style={{ marginTop: 60 }} />
+            <SkeletonGroup style={{ gap: 16, marginTop: 24 }}>
+              {[0, 1, 2].map((i) => <Skeleton key={i} height={96} radius={16} />)}
+              <SkeletonCard lines={2} />
+            </SkeletonGroup>
           ) : error ? (
             <View style={styles.content}>
               <ThemedText style={styles.error}>{error}</ThemedText>
@@ -160,7 +164,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     lineHeight: 22,
   },
   content: {
@@ -196,7 +200,7 @@ const styles = StyleSheet.create({
   },
   statHint: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
   },
   inviteCard: {
     borderWidth: 1,
@@ -216,7 +220,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
+    color: '#4B4B55',
   },
   row: {
     flexDirection: 'row',

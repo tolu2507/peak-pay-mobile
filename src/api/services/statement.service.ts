@@ -27,11 +27,19 @@ export interface BankStatementRequest {
 
 export interface StatementContext {
   available: boolean;
+  // The salary account: where statements come from.
   bank_account: {
+    id: string | null;
     bank_name: string;
+    bank_code: string;
+    // False when we can't pull statements from this bank.
+    supports_statement: boolean;
     account_number: string;
     phone_number: string;
   } | null;
+  // True while an eligibility check is being reviewed: the account can't be
+  // changed until the result is back.
+  account_locked?: boolean;
   statement_months: number;
   max_age_days: number;
   charge_notice: string;
@@ -73,6 +81,8 @@ class StatementService {
     phone: string;
     consent: true;
     provider_bank_id?: number;
+    // One of the customer's accounts; defaults to their salary account.
+    bank_account?: string;
   }): Promise<BankStatementRequest> {
     const response = await apiClient.post(base, data, inline);
     return response.data.data;

@@ -7,11 +7,14 @@ import { Toast } from '@/shared/ui/molecules/Toast';
 import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
 import { normalizeNigerianPhone, useKYCStore } from '@/store/useKYCStore';
-import type { ResolvedBankAccount } from '@/api/services/kyc.service';
+import KycService, { type ResolvedBankAccount } from '@/api/services/kyc.service';
+import { salaryBanks } from '@/constants/banks';
+import { PopTextInput } from '@/shared/ui/base/pop-text-input';
+import { loanStyles } from '@/components/loans/loan-ui';
 import { routeAfterKycStep } from '@/constants/kyc-routes';
 import { useSignupStore } from '@/store/useSignupStore';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState, useEffect } from 'react';
 import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,10 +24,21 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const BANK_RESOLVE_DEBOUNCE_MS = 400;
 
+// salary: the account statements come from, so only banks we can pull them from.
+// payout: an account to be paid into, at any bank.
+type BankPurpose = 'salary' | 'payout';
+
 export default function BankDetailsScreen() {
   const router = useRouter();
+  // ?edit=salary-bank: change the account statements come from (supported banks only).
+  // ?edit=loan-bank: add an account to be paid into (any bank).
+  // ?return=/loans/offer: where to go after saving (app paths only).
+  const params = useLocalSearchParams<{ edit?: string; return?: string }>();
+  const bankEdit: BankPurpose | null = params.edit === 'salary-bank' ? 'salary' : params.edit === 'loan-bank' ? 'payout' : null;
+  const purpose: BankPurpose = bankEdit ?? 'salary';
+  const returnTo = params.return && /^\/[A-Za-z0-9/_()-]*$/.test(params.return) && !params.return.startsWith('//') ? params.return : null;
   const {
-    banks,
+    banks: allBanks,
     bankAccount: saved,
     isBankAccountLoaded,
     loadBanks,
@@ -63,7 +77,9 @@ export default function BankDetailsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saved]);
 
-  const bank = banks.find((b) => b.code === bankCode);
+  const banks = purpose === 'salary' ? salaryBanks(allBanks, saved?.bank_code) : allBanks;
+  const bank = banks.find((b) => b.code === bankCode) ?? allBanks.find((b) => b.code === bankCode);
+  const unsupportedSalaryBank = purpose === 'salary' && !!bank && bank.supports_statement === false && allBanks.some((b) => b.supports_statement);
   // Identifies the bank/account pair to resolve; null until both are complete.
   const resolveKey = bank && accountNumber.length === 10 ? `${bank.code}:${accountNumber}` : null;
   const isResolved = !!resolved && `${resolved.bank_code}:${resolved.account_number}` === resolveKey;
@@ -95,7 +111,37 @@ export default function BankDetailsScreen() {
     };
   }, [resolveKey, isResolved, bank, accountNumber, resolveBankAccount]);
 
-  const isFormValid = isResolved && !!phoneNumber;
+  // A different bank from the saved one needs a code and the transaction PIN.
+  const isNewBank = !!saved && !!resolved && isResolved
+    && (saved.bank_code !== resolved.bank_code || saved.account_number !== resolved.account_number);
+  const [codeDestination, setCodeDestination] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [pin, setPin] = useState('');
+  const [codeError, setCodeError] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
+
+  const sendCode = async () => {
+    setSendingCode(true);
+    setCodeError('');
+    try {
+      const sent = await KycService.sendBankChangeCode();
+      setCodeDestination(sent.destination);
+    } catch (sendError: any) {
+      setCodeError(sendError?.response?.data?.message || 'We could not send your code. Try again.');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const isFormValid = isResolved && !!phoneNumber && (!isNewBank || (otpCode.length === 6 && pin.length === 4));
+
+  const finish = () => {
+    if (bankEdit && returnTo) { router.replace(returnTo as any); return; }
+    // A new salary account goes straight back to pulling its statement.
+    if (bankEdit === 'salary') { router.replace('/loans/statement'); return; }
+    if (bankEdit) { router.replace('/(tabs)'); return; }
+    router.push(routeAfterKycStep('bankDetails') as any);
+  };
 
   const handleAccountNumberChange = (val: string) => {
     setAccountNumber(val.replace(/\D/g, '').slice(0, 10));
@@ -108,10 +154,12 @@ export default function BankDetailsScreen() {
       && saved.account_number === resolved.account_number
       && saved.phone_number === phoneNumber;
     try {
-      if (!unchanged) await saveBankAccount(resolved, phone);
+      if (!unchanged) await saveBankAccount(resolved, phone, isNewBank ? { otpCode, pin } : undefined);
       Toast.show('Bank details saved', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-      router.push(routeAfterKycStep('bankDetails') as any);
+      finish();
     } catch (error: any) {
+      // The code is single use; ask for a new one after any failure.
+      if (isNewBank) { setOtpCode(''); setPin(''); setCodeDestination(''); }
       Toast.show(useKYCStore.getState().error || error?.message || 'Failed to save bank details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
     }
   };
@@ -125,7 +173,7 @@ export default function BankDetailsScreen() {
               <Ionicons name="chevron-back" size={24} color="#000" />
             </TouchableOpacity>
             <ThemedText type="title" style={styles.title}>
-              Add bank details
+              {purpose === 'payout' ? 'Add payout account' : 'Add bank details'}
             </ThemedText>
           </View>
           <CircularProgress
@@ -143,7 +191,9 @@ export default function BankDetailsScreen() {
         >
           <View style={styles.content}>
             <ThemedText style={styles.description}>
-              Provide your salary or most active account to qualify for better loan offers and significantly higher amounts.
+              {purpose === 'payout'
+                ? 'Your loan can be paid into an account at any bank. It must be in your name.'
+                : 'Provide the account your salary or income goes into. We pull your bank statement from it, so only banks we can get statements from are listed.'}
             </ThemedText>
 
             <View style={styles.form}>
@@ -157,8 +207,13 @@ export default function BankDetailsScreen() {
                   <ThemedText style={[styles.dropdownValue, !bank && { color: '#AAA' }]}>
                     {bank?.name || (banks.length ? 'Select an option' : 'Loading banks...')}
                   </ThemedText>
-                  <Ionicons name="chevron-down" size={20} color="#666" />
+                  <Ionicons name="chevron-down" size={20} color="#4B4B55" />
                 </TouchableOpacity>
+                {unsupportedSalaryBank && (
+                  <ThemedText style={styles.warning}>
+                    We can&apos;t get bank statements from {bank?.name} yet. Choose the bank your salary or income goes into from the list, or your loan can&apos;t be assessed.
+                  </ThemedText>
+                )}
               </View>
 
 
@@ -193,6 +248,46 @@ export default function BankDetailsScreen() {
                 onChangeText={setPhone}
               />
             </View>
+
+            {isNewBank && (
+              <View style={styles.newBank}>
+                <ThemedText style={styles.newBankText}>
+                  Adding a new bank account needs a code and your transaction PIN. Your current account stays linked, and any loan you have already accepted is still paid into it.
+                </ThemedText>
+                {!!codeError && <ThemedText style={[styles.warning, { color: '#FF3B30' }]}>{codeError}</ThemedText>}
+                {!codeDestination ? (
+                  <TouchableOpacity style={styles.sendCode} onPress={() => void sendCode()} disabled={sendingCode}>
+                    <ThemedText style={styles.sendCodeText}>{sendingCode ? 'Sending…' : 'Send code'}</ThemedText>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                    <View>
+                      <ThemedText style={styles.fieldLabel}>Code sent to {codeDestination}</ThemedText>
+                      <PopTextInput
+                        style={loanStyles.input}
+                        keyboardType="number-pad"
+                        textContentType="oneTimeCode"
+                        autoComplete="sms-otp"
+                        placeholder="6-digit code"
+                        value={otpCode}
+                        onChangeText={(v) => setOtpCode(v.replace(/\D/g, '').slice(0, 6))}
+                      />
+                    </View>
+                    <View>
+                      <ThemedText style={styles.fieldLabel}>Transaction PIN</ThemedText>
+                      <PopTextInput
+                        style={loanStyles.input}
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        placeholder="4-digit PIN"
+                        value={pin}
+                        onChangeText={(v) => setPin(v.replace(/\D/g, '').slice(0, 4))}
+                      />
+                    </View>
+                  </>
+                )}
+              </View>
+            )}
 
             <ThemedText style={styles.consentText}>
               By proceeding, you are giving us permission to run a credit check and collect financial information from you.
@@ -290,7 +385,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     lineHeight: 22,
     fontWeight: '400',
     marginBottom: 24,
@@ -344,12 +439,46 @@ const styles = StyleSheet.create({
   },
   verifyingText: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
     fontWeight: '500',
+  },
+  warning: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#9A3412',
+    fontWeight: '600',
+    marginTop: 8,
+    marginLeft: 4,
+  },
+  newBank: {
+    marginTop: 20,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+    backgroundColor: '#FFF8EE',
+    borderRadius: 14,
+    padding: 16,
+  },
+  newBankText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#3F3F46',
+  },
+  sendCode: {
+    borderWidth: 1,
+    borderColor: '#FF7A00',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  sendCodeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF7A00',
   },
   consentText: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
     lineHeight: 18,
     marginTop: 24,
     fontWeight: '400',

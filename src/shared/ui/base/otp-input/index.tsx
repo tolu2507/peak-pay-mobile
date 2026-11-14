@@ -31,6 +31,7 @@ import Animated, {
 import type { IOtpInput, IOtpContext, IOtpItem } from "./types";
 import { ANIMATION_VARIATIONS } from "./const";
 import { interFamily } from '@/constants/fonts';
+import { Shadows } from '@/constants/theme';
 
 const { width: WIDTH } = Dimensions.get("window");
 const OtpContext = createContext<IOtpContext>({} as IOtpContext);
@@ -190,6 +191,7 @@ const OtpItem: FC<IOtpItem> & FunctionComponent<IOtpItem> = ({
               borderRadius: inputBorderRadius,
             },
             animatedInputStyle,
+            focus === index ? Shadows.inputFocused : Shadows.input,
           ]}
         >
           {otpValue[index] !== "" && (

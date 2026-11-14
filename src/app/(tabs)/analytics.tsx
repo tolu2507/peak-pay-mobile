@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   cardLabel: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
     marginBottom: 8,
   },
   cardAmount: {
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
   },
   chartContainer: {
     height: 150,
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   },
   axisLabel: {
     fontSize: 11,
-    color: '#999',
+    color: '#6E6E78',
   },
   section: {
     marginBottom: 32,

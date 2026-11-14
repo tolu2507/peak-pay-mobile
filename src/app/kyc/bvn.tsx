@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     lineHeight: 22,
     fontWeight: '400',
     maxWidth: '90%',
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   footerNote: {
     marginTop: 12,
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     fontWeight: '400',
   },
   linkText: {

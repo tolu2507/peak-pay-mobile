@@ -1,4 +1,5 @@
 import { ThemedText } from '@/components/themed-text';
+import { SkeletonForm, SkeletonGroup } from '@/shared/ui/base/skeleton';
 import { ThemedView } from '@/components/themed-view';
 import { routeAfterKycStep } from '@/constants/kyc-routes';
 import { NIGERIAN_STATES } from '@/constants/nigeria';
@@ -251,7 +252,7 @@ export default function EmploymentScreen() {
             showsVerticalScrollIndicator={false}
           >
             {!isEmploymentLoaded ? (
-              <ActivityIndicator size="large" color="#FF7A00" style={{ marginTop: 40 }} />
+              <SkeletonGroup style={{ marginTop: 20 }}><SkeletonForm fields={5} /></SkeletonGroup>
             ) : (
             <View style={styles.form}>
               {renderDropdown("What is your employment status?", status, "employmentStatus")}
@@ -508,7 +509,7 @@ const styles = StyleSheet.create({
   },
   otpSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 32, fontWeight: '400',
@@ -526,7 +527,7 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: 12,
-    color: '#666', fontWeight: '400', textAlign: "left",
+    color: '#4B4B55', fontWeight: '400', textAlign: "left",
     position: "absolute",
     bottom: 30,
     left: -20,

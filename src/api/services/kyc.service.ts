@@ -99,6 +99,9 @@ export interface BankDetailsRequest {
   account_number: string;
   account_name: string;
   phone_number: string;
+  // Needed to add an account when the customer already has one.
+  otp_code?: string;
+  transaction_pin?: string;
 }
 
 export interface BankDetailsRecord extends BankDetailsRequest {
@@ -112,6 +115,10 @@ export interface Bank {
   name: string;
   code: string;
   slug: string;
+  // From the providers' live lists: whether we can pull a bank statement from
+  // this bank (needed for a loan), and whether it supports direct debit.
+  supports_statement?: boolean;
+  supports_direct_debit?: boolean;
 }
 
 export interface ResolvedBankAccount {
@@ -300,8 +307,14 @@ class KycService {
   }
 
   async createBankDetails(data: BankDetailsRequest) {
-    const response = await apiClient.post('/kyc/bank-details/', data);
+    const response = await apiClient.post('/kyc/bank-details/', data, { skipErrorToast: true });
     return response.data;
+  }
+
+  // Sends the code needed to add another bank account; returns where it went.
+  async sendBankChangeCode(): Promise<{ channel: 'sms' | 'email'; destination: string }> {
+    const response = await apiClient.post('/kyc/bank-details/change-otp/', {}, { skipErrorToast: true });
+    return response.data.data;
   }
 
   async getBankDetailsById(id: string) {

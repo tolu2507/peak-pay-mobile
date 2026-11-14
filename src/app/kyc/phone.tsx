@@ -15,6 +15,9 @@ import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Seconds before the user may request another code; the backend enforces the same wait.
+const PHONE_RESEND_SECONDS = 59;
+const formatTimer = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
 export default function PhoneVerificationScreen() {
   const router = useRouter();
@@ -23,6 +26,13 @@ export default function PhoneVerificationScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpKey, setOtpKey] = useState(0);
+  const [timer, setTimer] = useState(0);
+
+  useEffect(() => {
+    if (timer <= 0) return;
+    const t = setTimeout(() => setTimer((prev) => prev - 1), 1000);
+    return () => clearTimeout(t);
+  }, [timer]);
 
   // Start from the number given at signup.
   useEffect(() => {
@@ -42,8 +52,17 @@ export default function PhoneVerificationScreen() {
       setOtp('');
       setOtpKey((key) => key + 1);
       setOtpSent(true);
+      setTimer(PHONE_RESEND_SECONDS);
       Toast.show('Code sent to your phone', { type: 'success', position: "top", backgroundColor: "#1E9F85" });
-    } catch {
+    } catch (err) {
+      // A code went out moments ago and is still valid: let them enter it and
+      // count down what the backend says is left.
+      const response = (err as { response?: { status?: number; headers?: Record<string, string> } }).response;
+      if (response?.status === 429) {
+        setOtpSent(true);
+        setTimer(Number(response.headers?.['retry-after']) || PHONE_RESEND_SECONDS);
+        return;
+      }
       showError('Failed to send OTP');
     }
   };
@@ -125,9 +144,15 @@ export default function PhoneVerificationScreen() {
                     focusedBorderColor="#FF7A00"
                     textStyle={{ color: '#000', fontSize: 24 }}
                   />
-                  <ThemedText style={styles.footerNote}>
-                    Didn't get a code? <ThemedText style={styles.linkText} onPress={isLoading ? undefined : handleSend}>Resend code</ThemedText>
-                  </ThemedText>
+                  {timer > 0 ? (
+                    <ThemedText style={styles.footerNote}>
+                      Resend code in <ThemedText style={[styles.footerNote, { color: '#0B0B0F', fontWeight: '700' }]}>{formatTimer(timer)}</ThemedText>
+                    </ThemedText>
+                  ) : (
+                    <ThemedText style={styles.footerNote}>
+                      Didn't get a code? <ThemedText style={styles.linkText} onPress={isLoading ? undefined : handleSend}>Resend code</ThemedText>
+                    </ThemedText>
+                  )}
                 </>
               )}
             </View>
@@ -211,7 +236,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     lineHeight: 22,
     fontWeight: '400',
     maxWidth: '90%',
@@ -222,7 +247,7 @@ const styles = StyleSheet.create({
   footerNote: {
     marginTop: 12,
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     fontWeight: '400',
   },
   linkText: {

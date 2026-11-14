@@ -1,6 +1,9 @@
 import KycService, { type BankDetailsRecord } from '@/api/services/kyc.service';
+import { PopTextInput } from '@/shared/ui/base/pop-text-input';
+import { Skeleton, SkeletonDetails, SkeletonGroup, SkeletonHero } from '@/shared/ui/base/skeleton';
 import LoanService, { type AddressVerification, type LoanApplication, type OfferCodeDestination } from '@/api/services/loan.service';
-import RepaymentService, { setupProgress, type RepaymentMethod, type SetupProgress } from '@/api/services/repayment.service';
+import RepaymentService, { setupProgress, type RepaymentMethod, type RepaymentOptions, type SetupProgress } from '@/api/services/repayment.service';
+import { directDebitAccounts, payoutAccounts } from '@/constants/banks';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import {
@@ -109,6 +112,13 @@ export default function LoanOfferScreen() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  // What can be set up: undefined while loading (nothing offered yet, so a
+  // card-only customer never sees direct debit flash up), null if loading
+  // failed (both are offered; the backend still refuses an unsupported bank).
+  const [options, setOptions] = useState<RepaymentOptions | null | undefined>(undefined);
+  // Accounts the loan can be paid into, and the one chosen.
+  const [payoutChoices, setPayoutChoices] = useState<BankDetailsRecord[]>([]);
+  const [payoutId, setPayoutId] = useState('');
   const [accounts, setAccounts] = useState<BankDetailsRecord[]>([]);
   const [accountId, setAccountId] = useState('');
   const [address, setAddress] = useState({ state: '', city: '', street: '' });
@@ -218,6 +228,30 @@ export default function LoanOfferScreen() {
     };
   }, [attempt, router, confirmSetup, showSummary]);
 
+  // Whether direct debit can be offered at all; a bank without it gets card only.
+  useEffect(() => {
+    if (stage !== 'setup' || !application) return;
+    let active = true;
+    RepaymentService.options()
+      .then((value) => { if (active) setOptions(value); })
+      .catch(() => { if (active) setOptions(null); });
+    return () => { active = false; };
+  }, [stage, application?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The accounts the loan can be paid into, before the offer is accepted.
+  useEffect(() => {
+    if ((stage !== 'summary' && stage !== 'letter') || !application || application.offer_accepted_at) return;
+    let active = true;
+    KycService.listBankAccounts().then((list) => {
+      if (!active) return;
+      const choices = payoutAccounts(list);
+      setPayoutChoices(choices);
+      setPayoutId((current) => choices.some((a) => a.id === current) ? current
+        : choices.find((a) => a.id === application.payout_account?.id)?.id ?? choices[0]?.id ?? '');
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [stage, application?.id, application?.offer_accepted_at]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // After acceptance, wait for the payout so success is only shown once it's real.
   useEffect(() => {
     if (dialog !== 'processing' || !application) return;
@@ -253,8 +287,13 @@ export default function LoanOfferScreen() {
     setNotice('');
     setBusy(true);
     try {
-      const [banks, current] = await Promise.all([KycService.listBankAccounts(), LoanService.getCurrentAddress().catch(() => null)]);
-      const usable = banks.filter((bank) => bank.bank_code && bank.account_number);
+      const [mine, bankList, current] = await Promise.all([
+        KycService.listBankAccounts(),
+        KycService.getBanks(),
+        LoanService.getCurrentAddress().catch(() => null),
+      ]);
+      // Only accounts at banks that support direct debit, the suggested one first.
+      const usable = directDebitAccounts(mine, bankList, options?.direct_debit.bank_account?.id);
       setAccounts(usable);
       setAccountId(usable[0]?.id || '');
       if (current) {
@@ -315,7 +354,7 @@ export default function LoanOfferScreen() {
     setNotice('');
     setBusy(true);
     try {
-      setApplication(await LoanService.acceptOffer(application.id, otp, pin));
+      setApplication(await LoanService.acceptOffer(application.id, otp, pin, payoutId || undefined));
       setOtp('');
       setPin('');
       setDialog('processing');
@@ -353,6 +392,11 @@ export default function LoanOfferScreen() {
     ].every((value) => value !== null && value !== undefined);
   const termMoney = (value: string | null | undefined) => (hasTerms && value ? formatNaira(value) : 'Awaiting final terms');
 
+  // Before acceptance the customer's choice; after it, the account the backend fixed.
+  const chosenPayout = !application?.offer_accepted_at ? payoutChoices.find((a) => a.id === payoutId) : undefined;
+  const paidInto = chosenPayout ?? application?.payout_account ?? null;
+  const directDebitOff = !!options && !options.direct_debit.available;
+
   const summaryRows: Array<[string, string]> = application
     ? [
         ['Loan amount', formatNaira(amount)],
@@ -365,8 +409,8 @@ export default function LoanOfferScreen() {
         ['Total number of payments', String(application.duration_in_months)],
         [
           'Paid into',
-          application.payout_account
-            ? `${application.payout_account.bank_name} •••• ${application.payout_account.account_number.slice(-4)}`
+          paidInto
+            ? `${paidInto.bank_name} •••• ${paidInto.account_number.slice(-4)}`
             : 'Add a bank account in your name',
         ],
       ]
@@ -414,13 +458,39 @@ export default function LoanOfferScreen() {
               <ThemedText style={styles.small}>Eligible loan amount</ThemedText>
               <ThemedText style={styles.big}>{formatNaira(amount)}</ThemedText>
             </View>
-            <TouchableOpacity style={styles.option} onPress={openDirectDebit} disabled={busy}>
-              <Ionicons name="business-outline" size={22} color={ORANGE} />
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.optionTitle}>Direct debit from your bank account</ThemedText>
-                <ThemedText style={styles.small}>Authorize your bank to pay each instalment.</ThemedText>
+            {options === undefined ? (
+              <SkeletonGroup style={{ gap: 12 }}>
+                <Skeleton height={72} radius={14} />
+                <Skeleton height={72} radius={14} />
+              </SkeletonGroup>
+            ) : (
+              <>
+            {directDebitOff ? (
+              <View style={[styles.option, { backgroundColor: '#F9FAFB', borderColor: '#F0F0F0' }]}>
+                <Ionicons name="business-outline" size={22} color="#9CA3AF" />
+                <ThemedText style={[styles.small, { flex: 1 }]}>
+                  {options?.direct_debit.reason || "Direct debit isn't available for your bank. Use a debit card instead."}
+                </ThemedText>
               </View>
-            </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.option} onPress={openDirectDebit} disabled={busy}>
+                <Ionicons name="business-outline" size={22} color={ORANGE} />
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <ThemedText style={styles.optionTitle}>Direct debit from your bank account</ThemedText>
+                    {options?.recommended === 'direct_debit' && (
+                      <ThemedText style={styles.badge}>Recommended</ThemedText>
+                    )}
+                  </View>
+                  <ThemedText style={styles.small}>
+                    {options?.direct_debit.bank_account
+                      ? `From ${options.direct_debit.bank_account.bank_name} •••• ${options.direct_debit.bank_account.account_number.slice(-4)}. `
+                      : ''}
+                    Authorize your bank to pay each instalment.
+                  </ThemedText>
+                </View>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.option} onPress={startCard} disabled={busy}>
               <Ionicons name="card-outline" size={22} color={ORANGE} />
               <View style={{ flex: 1 }}>
@@ -428,6 +498,8 @@ export default function LoanOfferScreen() {
                 <ThemedText style={styles.small}>Save your card on Paystack&apos;s secure page.</ThemedText>
               </View>
             </TouchableOpacity>
+              </>
+            )}
             {busy && <ActivityIndicator color={ORANGE} />}
             <ThemedText style={ls.hint}>
               A one-time setup fee of {formatNaira(SETUP_FEE)} is charged through Paystack when your repayment method is confirmed.
@@ -445,7 +517,10 @@ export default function LoanOfferScreen() {
               Choose the account your repayments will come from. Your bank will ask you to approve the direct debit on the next page.
             </ThemedText>
             {accounts.length === 0 ? (
-              <Notice tone="warning" text="Add a bank account in your profile first, then come back to set up direct debit." />
+              <>
+                <Notice tone="warning" text="None of your bank accounts supports direct debit. Use a debit card for your repayments instead." />
+                <PrimaryButton label="Use a debit card" onPress={() => void startCard()} isLoading={busy} />
+              </>
             ) : (
               <>
                 <ThemedText style={ls.fieldLabel}>Bank account</ThemedText>
@@ -462,9 +537,9 @@ export default function LoanOfferScreen() {
                   </TouchableOpacity>
                 ))}
                 <ThemedText style={ls.fieldLabel}>Your address</ThemedText>
-                <TextInput style={ls.input} placeholder="Street" placeholderTextColor="#AAA" value={address.street} maxLength={255} onChangeText={(street) => setAddress({ ...address, street })} />
-                <TextInput style={ls.input} placeholder="City" placeholderTextColor="#AAA" value={address.city} maxLength={100} onChangeText={(city) => setAddress({ ...address, city })} />
-                <TextInput style={ls.input} placeholder="State" placeholderTextColor="#AAA" value={address.state} maxLength={100} onChangeText={(state) => setAddress({ ...address, state })} />
+                <PopTextInput style={ls.input} placeholder="Street" placeholderTextColor="#8E8E93" value={address.street} maxLength={255} onChangeText={(street) => setAddress({ ...address, street })} />
+                <PopTextInput style={ls.input} placeholder="City" placeholderTextColor="#8E8E93" value={address.city} maxLength={100} onChangeText={(city) => setAddress({ ...address, city })} />
+                <PopTextInput style={ls.input} placeholder="State" placeholderTextColor="#8E8E93" value={address.state} maxLength={100} onChangeText={(state) => setAddress({ ...address, state })} />
                 <ThemedText style={ls.hint}>Once your bank approves it, a {formatNaira(SETUP_FEE)} setup fee is debited from this account.</ThemedText>
                 <PrimaryButton
                   label="Continue to your bank"
@@ -574,6 +649,36 @@ export default function LoanOfferScreen() {
                 </ThemedText>
               ))}
           </View>
+          <View style={styles.payoutBox}>
+            {payoutChoices.length > 1 ? (
+              <>
+                <ThemedText style={ls.fieldLabel}>Pay my loan into</ThemedText>
+                {payoutChoices.map((account) => (
+                  <TouchableOpacity
+                    key={account.id}
+                    style={[styles.option, { backgroundColor: '#FFF' }, account.id === payoutId && { borderColor: ORANGE }]}
+                    onPress={() => setPayoutId(account.id)}
+                  >
+                    <Ionicons name={account.id === payoutId ? 'radio-button-on' : 'radio-button-off'} size={20} color={ORANGE} />
+                    <ThemedText style={styles.optionTitle}>
+                      {account.bank_name} · •••• {account.account_number.slice(-4)}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </>
+            ) : (
+              <ThemedText style={ls.body}>
+                Paid into{' '}
+                <ThemedText style={styles.bold}>
+                  {paidInto ? `${paidInto.bank_name} •••• ${paidInto.account_number.slice(-4)}` : 'your bank account'}
+                </ThemedText>
+              </ThemedText>
+            )}
+            <TextLink
+              label="Add another account to be paid into"
+              onPress={() => router.push('/kyc/bank-details?edit=loan-bank&return=/loans/offer' as any)}
+            />
+          </View>
           <View style={{ marginTop: 8 }}>
             <Checkbox checked={consent} onToggle={() => setConsent((value) => !value)} label="I hereby accept the Terms and Conditions of this offer" />
           </View>
@@ -594,10 +699,11 @@ export default function LoanOfferScreen() {
           {loading ? (
             <>
               <LoanHeader title="Your loan offer" />
-              <View style={styles.loading}>
-                <ActivityIndicator color={ORANGE} />
-                <ThemedText style={ls.body}>Loading your loan offer…</ThemedText>
-              </View>
+              <SkeletonGroup style={{ gap: 20, marginTop: 20 }}>
+                <SkeletonHero />
+                <View style={{ backgroundColor: '#FFF' }}><SkeletonDetails rows={6} /></View>
+                <Skeleton height={56} radius={16} />
+              </SkeletonGroup>
             </>
           ) : failed ? (
             <>
@@ -682,8 +788,19 @@ export default function LoanOfferScreen() {
 }
 
 const styles = StyleSheet.create({
+  badge: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#B35F00',
+    backgroundColor: '#FFF4E5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  payoutBox: { gap: 10, backgroundColor: '#F9FAFB', borderRadius: 14, padding: 14, marginTop: 8 },
   loading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 32 },
-  small: { fontSize: 12, color: '#666' },
+  small: { fontSize: 12, color: '#4B4B55' },
   big: { fontSize: 22, fontWeight: '700', color: '#000' },
   option: {
     flexDirection: 'row',

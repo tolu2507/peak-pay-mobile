@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: '#666',
+    color: '#4B4B55',
     lineHeight: 24, 
     fontWeight: '400', 
     maxWidth: '80%'
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   },
   bottomSheetDesc: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     marginTop: 8,
   },
   requirements: {

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AuthService from '../api/services/auth.service';
 import { useKYCStore } from './useKYCStore';
+import { useLoanStore } from './useLoanStore';
 
 interface AuthState {
   token: string | null;
@@ -35,6 +36,8 @@ export const useAuthStore = create<AuthState>()(
       clearSession: () => {
         // The KYC store isn't persisted, but must not leak to the next user.
         useKYCStore.getState().resetKYC();
+        // Nor may a half-filled loan application.
+        useLoanStore.getState().prepareDraft(null);
         set({ token: null, refreshToken: null, user: null, loanAmount: 0, isAuthenticated: false });
       },
       logout: async () => {

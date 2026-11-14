@@ -94,7 +94,7 @@ export function Notice({ text, tone = 'warning' }: { text: string; tone?: 'warni
     warning: { border: ORANGE, bg: '#FFF', icon: 'alert-circle-outline' as const, color: ORANGE },
     error: { border: '#FFD6D3', bg: '#FFF4F3', icon: 'alert-circle-outline' as const, color: '#FF3B30' },
     success: { border: '#CDEDE6', bg: '#EEF9F6', icon: 'checkmark-circle-outline' as const, color: GREEN },
-    info: { border: '#F0F0F0', bg: '#F3F4F6', icon: 'information-circle-outline' as const, color: '#666' },
+    info: { border: '#F0F0F0', bg: '#F3F4F6', icon: 'information-circle-outline' as const, color: '#4B4B55' },
   }[tone];
   return (
     <View style={[styles.notice, { borderColor: palette.border, backgroundColor: palette.bg }]}>
@@ -136,12 +136,12 @@ export const loanStyles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
   form: { marginTop: 20, gap: 16 },
-  body: { fontSize: 14, lineHeight: 21, color: '#666' },
+  body: { fontSize: 14, lineHeight: 21, color: '#4B4B55' },
   heading: { fontSize: 16, fontWeight: '700', color: '#000' },
   fieldLabel: { fontSize: 14, fontWeight: '600', color: '#000', marginBottom: 8, marginLeft: 4 },
   input: {
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: '#E7E8EC',
     borderRadius: 12,
     height: 56,
     paddingHorizontal: 16,
@@ -153,7 +153,7 @@ export const loanStyles = StyleSheet.create({
   },
   card: { backgroundColor: '#F3F4F6', borderRadius: 12, padding: 16, gap: 6 },
   errorText: { color: '#FF3B30', fontSize: 12, marginTop: 4 },
-  hint: { fontSize: 12, color: '#666', marginTop: 6 },
+  hint: { fontSize: 12, color: '#4B4B55', marginTop: 6 },
   footer: { marginTop: 32, alignItems: 'center', gap: 12 },
   optionsList: { paddingHorizontal: 24, paddingTop: 8 },
   optionsHeader: { fontSize: 16, fontWeight: '700', color: '#000', marginBottom: 20 },
@@ -189,6 +189,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
-  detailLabel: { fontSize: 14, color: '#666', flexShrink: 1 },
+  detailLabel: { fontSize: 14, color: '#4B4B55', flexShrink: 1 },
   detailValue: { fontSize: 14, color: '#000', fontWeight: '700', textAlign: 'right', flexShrink: 1 },
 });

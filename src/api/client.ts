@@ -41,10 +41,16 @@ async function refreshAccessToken() {
 }
 
 // Request Interceptor
+// Calls made by someone who isn't logged in yet. They never carry the stored
+// token: one left over from an old session (expired, or signed with a key the
+// server has since changed) would make the server refuse the request.
+const PUBLIC_PATHS = ['/auth/create-user/', '/auth/login/', '/auth/password/reset/', '/auth/token/refresh/'];
+export const isPublicPath = (url = '') => PUBLIC_PATHS.includes(url.split('?')[0]);
+
 apiClient.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().token;
-    if (token) {
+    if (token && !isPublicPath(config.url)) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -134,6 +140,12 @@ apiClient.interceptors.response.use(
                 const { router } = require('expo-router');
                 router.push('/(auth)/verify');
               }).catch(err => {
+                // A code was sent moments ago and is still valid, so go verify it.
+                if (err.response?.status === 429) {
+                  const { router } = require('expo-router');
+                  router.push('/(auth)/verify');
+                  return;
+                }
                 console.log('Failed to send OTP on dismiss:', err.response?.data || err.message);
               });
             };

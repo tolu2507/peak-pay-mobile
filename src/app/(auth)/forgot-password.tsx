@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: '#4B4B55',
     marginTop: 8,
   },
   error: {
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   },
   helper: {
     fontSize: 12,
-    color: '#666',
+    color: '#4B4B55',
   },
   requirementRow: {
     flexDirection: 'row',
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   },
   signupText: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
   },
   linkText: {
     color: '#FF7A00',

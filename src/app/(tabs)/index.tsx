@@ -16,6 +16,8 @@ import userService, { type UserProfile } from '@/api/services/user.service';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Shadows } from '@/constants/theme';
+import { Skeleton, SkeletonGroup, SkeletonHero, SkeletonList } from '@/shared/ui/base/skeleton';
+import LoanService, { type LoanTransaction } from '@/api/services/loan.service';
 
 const FILTERS = ['All', 'Credit', 'Debit'] as const;
 
@@ -36,6 +38,10 @@ export default function HomeScreen() {
   const isPaidOut = application?.disbursement_status === 'disbursed';
   const [filter, setFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  // True until the first KYC/loan sync settles, so the cards don't flash the
+  // wrong state while we wait for the server.
+  const [booting, setBooting] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -44,6 +50,8 @@ export default function HomeScreen() {
         setProfile(data);
       } catch (error) {
         console.error('Failed to fetch profile:', error);
+      } finally {
+        setProfileLoading(false);
       }
     };
     fetchProfile();
@@ -53,9 +61,11 @@ export default function HomeScreen() {
   // time the tab is shown (e.g. after finishing a KYC step).
   useFocusEffect(
     useCallback(() => {
-      void syncKycProgress();
-      fetchLatestApplication().catch(() => undefined);
-      getEligibility().catch(() => undefined);
+      void Promise.allSettled([
+        syncKycProgress(),
+        fetchLatestApplication(),
+        getEligibility(),
+      ]).finally(() => setBooting(false));
     }, [syncKycProgress, fetchLatestApplication, getEligibility]),
   );
 
@@ -65,8 +75,46 @@ export default function HomeScreen() {
     ? `${profile.first_name} ${profile.last_name || ''}` 
     : (form.firstName && form.lastName ? `${form.firstName} ${form.lastName}` : 'User');
 
-  // There is no transactions endpoint yet; the web shows an empty list too.
-  const transactions: { id: string; title: string; date: string; amount: string; type: 'credit' | 'debit' }[] = [];
+  // Loan transactions (payouts and repayments), 20 a page like the web.
+  const [txItems, setTxItems] = useState<LoanTransaction[]>([]);
+  const [txLoading, setTxLoading] = useState(true);
+  const [txError, setTxError] = useState(false);
+  const [txPage, setTxPage] = useState(1);
+  const [txHasNext, setTxHasNext] = useState(false);
+  const [txLoadingMore, setTxLoadingMore] = useState(false);
+
+  const loadTransactions = useCallback(async (page: number) => {
+    if (page === 1) setTxError(false);
+    else setTxLoadingMore(true);
+    try {
+      const history = await LoanService.getTransactionPage(page);
+      setTxItems((current) => (page === 1 ? history.results : [...current, ...history.results]));
+      setTxHasNext(history.next);
+      setTxPage(page);
+    } catch {
+      if (page === 1) setTxError(true);
+    } finally {
+      setTxLoading(false);
+      setTxLoadingMore(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadTransactions(1);
+    }, [loadTransactions]),
+  );
+
+  const transactions = txItems.map((tx) => {
+    const value = Number(tx.amount);
+    return {
+      id: tx.id,
+      title: tx.narration,
+      date: new Date(tx.date).toLocaleDateString('en-GB', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'short', year: 'numeric' }),
+      amount: Math.abs(value).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' }),
+      type: (value < 0 ? 'debit' : 'credit') as 'credit' | 'debit',
+    };
+  });
 
   const filteredTransactions = transactions.filter(tx => {
     if (filter === 'All') return true;
@@ -80,14 +128,25 @@ export default function HomeScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <ThemedText type="title" style={styles.greeting}>Hi, {displayName}</ThemedText>
+              {profileLoading && !form.firstName ? (
+                <Skeleton width={180} height={22} radius={8} style={{ marginBottom: 14 }} />
+              ) : (
+                <ThemedText type="title" style={styles.greeting}>Hi, {displayName}</ThemedText>
+              )}
               <ThemedText style={styles.subGreeting}>Ready to start a new day with us?</ThemedText>
             </View>
 
           </View>
 
+          {booting && (
+            <SkeletonGroup style={{ gap: 16, marginBottom: 24 }}>
+              <Skeleton height={56} radius={14} />
+              <SkeletonHero />
+            </SkeletonGroup>
+          )}
+
           {/* KYC Alert */}
-          {!isKYCComplete && (
+          {!booting && !isKYCComplete && (
             <TouchableOpacity
               style={styles.kycAlert}
               onPress={openKyc}
@@ -102,7 +161,7 @@ export default function HomeScreen() {
           )}
 
           {/* Eligibility/Loan Status Card */}
-          {(!isKYCComplete || isApplied) && (
+          {!booting && (!isKYCComplete || isApplied) && (
             <View style={[styles.eligibilityCard, isApplied && { backgroundColor: '#F0F9FF' }]}>
               <View style={styles.eligibilityContent}>
                 <ThemedText style={styles.eligibilityLabel}>
@@ -132,7 +191,7 @@ export default function HomeScreen() {
           )}
 
           {/* Loan Balance Card - Only show if KYC complete and NOT applied yet */}
-          {isKYCComplete && !isApplied && (
+          {!booting && isKYCComplete && !isApplied && (
             <View style={styles.balanceCard}>
               <ThemedText style={styles.balanceLabel}>Eligible Loan Balance</ThemedText>
               <View style={styles.balanceRow}>
@@ -159,7 +218,7 @@ export default function HomeScreen() {
               <ThemedText style={[styles.adsTitle, { color: '#d1d10bff' }]}>Need instant loan? <ThemedText style={[styles.adsTitle, { maxWidth: "100%" }]}>Get it in minutes!</ThemedText></ThemedText>
             </View>
             <Image
-              source={require('@/assets/images/peakpay_logo.jpg')} // Reusing logo for now
+              source={require('@/assets/images/logo-mark-white.png')}
               style={styles.adsIcon}
             />
           </View>
@@ -183,7 +242,18 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.transactionsList}>
-            {filteredTransactions.map(item => (
+            {txLoading && (
+              <SkeletonGroup><SkeletonList rows={4} /></SkeletonGroup>
+            )}
+            {!txLoading && txError && (
+              <View style={{ alignItems: 'center', gap: 8, paddingVertical: 24 }}>
+                <ThemedText style={styles.emptyTransactions}>We could not load your transactions.</ThemedText>
+                <TouchableOpacity onPress={() => { setTxLoading(true); void loadTransactions(1); }}>
+                  <ThemedText style={{ color: '#FF7A00', fontWeight: '700', fontSize: 14 }}>Try again</ThemedText>
+                </TouchableOpacity>
+              </View>
+            )}
+            {!txLoading && !txError && filteredTransactions.map(item => (
               <View key={item.id} style={styles.transactionItem}>
                 <View style={styles.txIcon}>
                   <Ionicons name={item.type === 'credit' ? "arrow-down-circle" : "arrow-up-circle"} size={24} color={item.type === 'credit' ? "#1E9F85" : "#FF3B30"} />
@@ -195,8 +265,21 @@ export default function HomeScreen() {
                 <ThemedText style={[styles.txAmount, { color: item.type === 'credit' ? '#1E9F85' : '#000' }]}>{item.amount}</ThemedText>
               </View>
             ))}
-            {filteredTransactions.length === 0 && (
-              <ThemedText style={styles.emptyTransactions}>No transactions found in this category.</ThemedText>
+            {!txLoading && !txError && filteredTransactions.length === 0 && (
+              <ThemedText style={styles.emptyTransactions}>
+                {transactions.length === 0 ? 'No transactions yet.' : 'No transactions found in this category.'}
+              </ThemedText>
+            )}
+            {!txLoading && !txError && txHasNext && (
+              <TouchableOpacity
+                style={{ alignItems: 'center', paddingVertical: 14 }}
+                disabled={txLoadingMore}
+                onPress={() => void loadTransactions(txPage + 1)}
+              >
+                <ThemedText style={{ color: '#FF7A00', fontWeight: '700', fontSize: 14 }}>
+                  {txLoadingMore ? 'Loading…' : 'Load more'}
+                </ThemedText>
+              </TouchableOpacity>
             )}
           </View>
         </ScrollView>
@@ -248,7 +331,7 @@ const styles = StyleSheet.create({
   },
   subGreeting: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     fontWeight: '400',
     marginTop:-10
   },
@@ -320,7 +403,7 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     marginBottom: 8,
   },
   balanceRow: {
@@ -401,7 +484,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 14, fontWeight: "400",
-    color: '#666', textAlign: "center"
+    color: '#4B4B55', textAlign: "center"
   },
   activeTabText: {
     fontSize: 14,
@@ -434,7 +517,7 @@ const styles = StyleSheet.create({
   },
   txDate: {
     fontSize: 12,
-    color: '#999',
+    color: '#6E6E78',
   },
   txAmount: {
     fontSize: 14,
@@ -442,7 +525,7 @@ const styles = StyleSheet.create({
   },
   emptyTransactions: {
     textAlign: 'center',
-    color: '#999',
+    color: '#6E6E78',
     marginTop: 20,
     fontSize: 14,
   },

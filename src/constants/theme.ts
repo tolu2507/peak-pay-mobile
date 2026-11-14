@@ -9,11 +9,11 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
+    text: '#0B0B0F',
     background: '#ffffff',
     backgroundElement: '#F0F0F3',
     backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    textSecondary: '#4B4B55',
   },
   dark: {
     text: '#ffffff',
@@ -65,21 +65,29 @@ export const Spacing = {
 // iOS draws shadow*; Android uses elevation. Both need a backgroundColor on
 // the element and no overflow: 'hidden'.
 export const Shadows = {
-  // Inputs, dropdowns and other form fields.
+  // Inputs, dropdowns and other form fields at rest.
   input: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: '#1B1F2A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.09,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  // A field the user is typing in: lifted, with a brand-orange glow.
+  inputFocused: {
+    shadowColor: '#FF7A00',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 8,
   },
   // Cards and grouped panels.
   card: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowColor: '#1B1F2A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 5,
   },
 } as const;
 

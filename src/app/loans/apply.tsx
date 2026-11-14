@@ -1,4 +1,5 @@
 import { ThemedText } from '@/components/themed-text';
+import { Skeleton, SkeletonDetails, SkeletonGroup } from '@/shared/ui/base/skeleton';
 import { ThemedView } from '@/components/themed-view';
 import { Button } from '@/shared/ui/base/button';
 import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
@@ -184,10 +185,10 @@ export default function ApplyLoanScreen() {
           {error && <ThemedText style={styles.fieldError}>{error}</ThemedText>}
 
           {isFormValid && isQuoting && !quote && (
-            <View style={styles.quoting}>
-              <ActivityIndicator color="#FF7A00" />
-              <ThemedText style={styles.monthlyLabel}>Calculating your repayment…</ThemedText>
-            </View>
+            <SkeletonGroup style={styles.summaryContainer}>
+              <Skeleton height={88} radius={16} />
+              <SkeletonDetails rows={4} />
+            </SkeletonGroup>
           )}
 
           {quote && (
@@ -236,7 +237,9 @@ export default function ApplyLoanScreen() {
         <ScrollView style={styles.optionsList}>
           <ThemedText style={styles.optionsHeader}>Select option</ThemedText>
           {activeDropdown && options[activeDropdown].length === 0 && (
-            <ActivityIndicator color="#FF7A00" style={{ marginTop: 20 }} />
+            <SkeletonGroup style={{ gap: 18, marginTop: 8 }}>
+              {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} height={16} width={i % 2 ? '55%' : '75%'} />)}
+            </SkeletonGroup>
           )}
           {activeDropdown && options[activeDropdown].map((opt) => (
             <TouchableOpacity
@@ -351,7 +354,7 @@ const styles = StyleSheet.create({
   },
   monthlyLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     marginBottom: 8,
     fontWeight: '400',
   },
@@ -375,7 +378,7 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     fontWeight: '400',
   },
   detailValue: {

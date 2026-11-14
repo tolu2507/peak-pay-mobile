@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Skeleton, SkeletonGroup, SkeletonText } from '@/shared/ui/base/skeleton';
 import { View, StyleSheet, ActivityIndicator, TouchableOpacity} from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,9 +24,12 @@ export default function LegalScreen() {
       
       <View style={styles.webviewContainer}>
         {loading && (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#FF7A00" />
-          </View>
+          <SkeletonGroup style={[styles.loaderContainer, { justifyContent: 'flex-start', alignItems: 'stretch', padding: 20, gap: 24 }]}>
+            <Skeleton width="60%" height={22} />
+            <SkeletonText lines={5} />
+            <SkeletonText lines={4} />
+            <SkeletonText lines={6} />
+          </SkeletonGroup>
         )}
         <WebView
           source={{ uri: url || 'https://www.mypeakpay.com/privacy' }}

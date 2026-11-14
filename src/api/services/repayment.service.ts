@@ -67,10 +67,30 @@ export function setupProgress(method: RepaymentMethod): SetupProgress {
   return { state: 'waiting', message: 'Your bank approved the direct debit. We are charging the setup fee.' };
 }
 
+// Which repayment methods the customer can set up. When their bank doesn't
+// support direct debit, direct_debit.available is false: offer a card only.
+export interface RepaymentOptions {
+  direct_debit: {
+    available: boolean;
+    // The account the backend suggests for the mandate (their salary account when it can).
+    bank_account: { id: string; bank_name: string; bank_code: string; account_number: string; account_name: string } | null;
+    salary_account: boolean;
+    // Why direct debit isn't available; empty when it is.
+    reason: string;
+  };
+  card: { available: boolean };
+  recommended: 'direct_debit' | 'card';
+}
+
 // The loan screens show errors inline, not as a toast.
 const inline = { skipErrorToast: true };
 
 class RepaymentService {
+  async options(): Promise<RepaymentOptions> {
+    const response = await apiClient.get('/repayment-options/', inline);
+    return response.data.data;
+  }
+
   async listMandates(): Promise<DirectDebitMandate[]> {
     const response = await apiClient.get('/direct-debit/mandates/', inline);
     return response.data.data;

@@ -1,4 +1,7 @@
-import KycService from '@/api/services/kyc.service';
+import KycService, { type BankDetailsRecord } from '@/api/services/kyc.service';
+import { statementAccounts } from '@/constants/banks';
+import { PopTextInput } from '@/shared/ui/base/pop-text-input';
+import { SkeletonCard, SkeletonForm, SkeletonGroup } from '@/shared/ui/base/skeleton';
 import StatementService, { BankStatementRequest, StatementContext } from '@/api/services/statement.service';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -66,6 +69,20 @@ export default function StatementScreen() {
   const pollAttempt = useRef(0);
   const requestRef = useRef<BankStatementRequest | null>(null);
   const bankSheet = useRef<BottomSheetMethods>(null);
+  const accountSheet = useRef<BottomSheetMethods>(null);
+  // The customer's accounts at banks we can pull statements from, and the one chosen.
+  const [salaryOptions, setSalaryOptions] = useState<BankDetailsRecord[]>([]);
+  const [chosenAccount, setChosenAccount] = useState('');
+
+  // Which of the customer's accounts statements can come from. Optional: if it
+  // fails, the salary account from the context is used as before.
+  useEffect(() => {
+    let active = true;
+    void Promise.all([KycService.listBankAccounts(), KycService.getBanks()])
+      .then(([accounts, bankList]) => { if (active) setSalaryOptions(statementAccounts(accounts, bankList)); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -199,6 +216,7 @@ export default function StatementScreen() {
         phone,
         consent: true,
         ...(bankId ? { provider_bank_id: Number(bankId) } : {}),
+        ...(selectedAccount ? { bank_account: selectedAccount } : {}),
       });
       if (mounted.current) {
         accept(value);
@@ -272,7 +290,25 @@ export default function StatementScreen() {
   const usable = current?.status === 'completed' && current.is_usable;
   const showStart = !current || current.status === 'failed' || (current.status === 'completed' && !current.is_usable);
   const needsTicket = !!current && NEEDS_TICKET.has(current.status);
-  const account = showStart ? context?.bank_account : current;
+  // The customer's pick; until then the salary account, or the first supported one.
+  const salaryId = context?.bank_account?.id ?? '';
+  const selectedAccount = salaryOptions.some((a) => a.id === chosenAccount)
+    ? chosenAccount
+    : (salaryOptions.find((a) => a.id === salaryId) ?? salaryOptions[0])?.id ?? '';
+  const chosen = salaryOptions.find((a) => a.id === selectedAccount);
+  const account = showStart ? (chosen ?? context?.bank_account) : current;
+  // The salary account's bank isn't supported and no other account of theirs is.
+  const noSupportedAccount =
+    !!context?.bank_account && context.bank_account.supports_statement === false && !chosen;
+  const chooseAccount = (id: string) => {
+    setChosenAccount(id);
+    // A bank matched by hand belonged to the previous account.
+    setBankId('');
+    setBanks([]);
+    const next = salaryOptions.find((a) => a.id === id);
+    if (next?.phone_number) setPhone(next.phone_number);
+  };
+  const editSalaryBank = () => router.push('/kyc/bank-details?edit=salary-bank' as any);
   const fieldError = (name: string) => (fields[name] ? <ThemedText style={ls.errorText}>{fields[name]}</ThemedText> : null);
   const selectedBank = banks.find((bank) => String(bank.id) === bankId);
 
@@ -291,10 +327,10 @@ export default function StatementScreen() {
           <ThemedText style={[ls.body, { marginTop: 12 }]}>Help us assess your loan with a statement from your bank.</ThemedText>
 
           {loading ? (
-            <View style={styles.loading}>
-              <ActivityIndicator color="#FF7A00" />
-              <ThemedText style={ls.body}>Loading your saved progress…</ThemedText>
-            </View>
+            <SkeletonGroup style={{ gap: 20, marginTop: 20 }}>
+              <SkeletonCard lines={3} />
+              <SkeletonForm fields={2} />
+            </SkeletonGroup>
           ) : (
             <View style={ls.form}>
               {account && (
@@ -356,11 +392,21 @@ export default function StatementScreen() {
               {context && !context.bank_account && (
                 <>
                   <ThemedText style={ls.body}>Add your bank account before requesting a statement.</ThemedText>
-                  <TextLink label="Add bank details" onPress={() => router.push('/kyc/bank-details')} />
+                  <TextLink label="Add bank details" onPress={editSalaryBank} />
                 </>
               )}
 
-              {showStart && context?.available && context.bank_account && (
+              {showStart && context?.available && noSupportedAccount && (
+                <>
+                  <Notice
+                    tone="warning"
+                    text={`We can't get bank statements from ${context.bank_account?.bank_name} yet. Add the account your salary or income goes into at one of the banks we support.`}
+                  />
+                  <TextLink label="Add your salary account" onPress={editSalaryBank} />
+                </>
+              )}
+
+              {showStart && context?.available && context.bank_account && !noSupportedAccount && (
                 <>
                   {current?.status === 'failed' && (
                     <Notice
@@ -368,7 +414,24 @@ export default function StatementScreen() {
                       text={`Your statement request could not be completed. ${current.feedback || 'Check your bank account and registered phone number before trying again.'}`}
                     />
                   )}
-                  <TextLink label="Update bank details" onPress={() => router.push('/kyc/bank-details')} />
+                  {context.account_locked && (
+                    <Notice tone="info" text="Your eligibility check is being reviewed. You can use a different account once your result is back." />
+                  )}
+                  {salaryOptions.length > 1 && !context.account_locked && (
+                    <View>
+                      <ThemedText style={ls.fieldLabel}>Account your salary or income goes into</ThemedText>
+                      <TouchableOpacity style={[ls.input, styles.select]} onPress={() => accountSheet.current?.expand()} disabled={busyAny}>
+                        <ThemedText style={{ color: '#0B0B0F', fontSize: 14 }}>
+                          {chosen ? `${chosen.bank_name} · ${mask(chosen.account_number)}` : 'Choose an account'}
+                        </ThemedText>
+                        <Ionicons name="chevron-down" size={20} color="#4B4B55" />
+                      </TouchableOpacity>
+                      {fieldError('bank_account')}
+                    </View>
+                  )}
+                  {!context.account_locked && (
+                    <TextLink label="Use a different account" onPress={editSalaryBank} />
+                  )}
                   {current?.status === 'completed' && (
                     <Notice
                       tone="warning"
@@ -378,14 +441,14 @@ export default function StatementScreen() {
 
                   <View>
                     <ThemedText style={ls.fieldLabel}>Phone number registered with your bank</ThemedText>
-                    <TextInput
+                    <PopTextInput
                       value={phone}
                       onChangeText={setPhone}
                       keyboardType="phone-pad"
                       autoComplete="tel"
                       editable={!busyAny}
                       style={ls.input}
-                      placeholderTextColor="#AAA"
+                      placeholderTextColor="#8E8E93"
                     />
                     {fieldError('phone')}
                     <ThemedText style={ls.hint}>
@@ -398,7 +461,7 @@ export default function StatementScreen() {
                       <ThemedText style={ls.fieldLabel}>Match your saved bank</ThemedText>
                       <TouchableOpacity style={[ls.input, styles.select]} onPress={() => bankSheet.current?.expand()} disabled={busyAny}>
                         <ThemedText style={{ color: selectedBank ? '#000' : '#AAA', fontSize: 14 }}>
-                          {selectedBank?.name || `Select ${context.bank_account.bank_name}`}
+                          {selectedBank?.name || `Select ${account?.bank_name ?? context.bank_account.bank_name}`}
                         </ThemedText>
                         <Ionicons name="chevron-down" size={20} color="#666" />
                       </TouchableOpacity>
@@ -442,11 +505,11 @@ export default function StatementScreen() {
                   />
                   <View>
                     <ThemedText style={ls.fieldLabel}>Ticket number</ThemedText>
-                    <TextInput
+                    <PopTextInput
                       value={ticket}
                       onChangeText={setTicket}
                       placeholder="e.g. 1137400-6"
-                      placeholderTextColor="#AAA"
+                      placeholderTextColor="#8E8E93"
                       autoCorrect={false}
                       autoCapitalize="none"
                       editable={!busyAny && !uncertain}
@@ -457,7 +520,7 @@ export default function StatementScreen() {
                   <View>
                     <ThemedText style={ls.fieldLabel}>Statement password</ThemedText>
                     <View>
-                      <TextInput
+                      <PopTextInput
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry={!showPassword}
@@ -557,6 +620,26 @@ export default function StatementScreen() {
           ))}
         </ScrollView>
       </BottomSheet>
+
+      <BottomSheet ref={accountSheet} snapPoints={['50%']} enableBackdrop backdropOpacity={0.7}>
+        <ScrollView style={ls.optionsList}>
+          <ThemedText style={ls.optionsHeader}>Choose your salary account</ThemedText>
+          {salaryOptions.map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              style={ls.optionItem}
+              onPress={() => {
+                chooseAccount(option.id);
+                accountSheet.current?.close();
+              }}
+            >
+              <ThemedText style={[ls.optionText, option.id === selectedAccount && { color: '#FF7A00', fontWeight: '700' }]}>
+                {option.bank_name} · {mask(option.account_number)}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </BottomSheet>
     </ThemedView>
   );
 }
@@ -564,7 +647,7 @@ export default function StatementScreen() {
 const styles = StyleSheet.create({
   loading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 32 },
   accountRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  small: { fontSize: 12, color: '#666' },
+  small: { fontSize: 12, color: '#4B4B55' },
   strong: { fontSize: 14, fontWeight: '700', color: '#000', marginTop: 2 },
   select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   privacy: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },

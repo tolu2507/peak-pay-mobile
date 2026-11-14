@@ -1,11 +1,12 @@
 import { ThemedText } from '@/components/themed-text';
+import { SkeletonCard, SkeletonGroup, SkeletonHero } from '@/shared/ui/base/skeleton';
 import { ThemedView } from '@/components/themed-view';
 import { nextKycRoute } from '@/constants/kyc-routes';
 import { loanRouteFor } from '@/constants/loan';
 import { Button } from '@/shared/ui/base/button';
 import { Toast } from '@/shared/ui/molecules/Toast';
 import { useAuthStore } from '@/store/useAuthStore';
-import { isKycCompleted, useKYCStore } from '@/store/useKYCStore';
+import { isLoanKycReady, useKYCStore } from '@/store/useKYCStore';
 import { useLoanStore } from '@/store/useLoanStore';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -25,10 +26,11 @@ export default function LoanStartScreen() {
     setFailed(false);
     try {
       const kyc = useKYCStore.getState();
-      if (!isKycCompleted(kyc)) {
+      // Loans need every KYC step done; phone verification is exempt.
+      if (!isLoanKycReady(kyc)) {
         // Check the server before sending the user back to KYC.
         await kyc.syncKycProgress();
-        if (!isKycCompleted(useKYCStore.getState())) {
+        if (!isLoanKycReady(useKYCStore.getState())) {
           Toast.show('Complete your KYC to take a loan.', { type: 'error', position: 'top', backgroundColor: '#FF3B30' });
           router.replace((nextKycRoute() ?? '/kyc/phone') as any);
           return;
@@ -66,10 +68,11 @@ export default function LoanStartScreen() {
               </Button>
             </>
           ) : (
-            <>
-              <ActivityIndicator size="large" color="#FF7A00" />
+            <SkeletonGroup style={{ alignSelf: 'stretch', gap: 16 }}>
+              <SkeletonHero />
+              <SkeletonCard lines={2} />
               <ThemedText style={styles.body}>Checking your loan eligibility…</ThemedText>
-            </>
+            </SkeletonGroup>
           )}
         </View>
       </SafeAreaView>
@@ -83,6 +86,6 @@ const styles = StyleSheet.create({
   backBtn: { marginTop: 20, marginLeft: -8, alignSelf: 'flex-start' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, paddingBottom: 80 },
   title: { fontSize: 18, fontWeight: '700', color: '#000', textAlign: 'center' },
-  body: { fontSize: 14, color: '#666', textAlign: 'center' },
+  body: { fontSize: 14, color: '#4B4B55', textAlign: 'center' },
   buttonText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
 });

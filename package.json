@@ -11,7 +11,8 @@
     "lint": "expo lint",
     "prebuild": "npx expo prebuild",
     "build:apk": "eas build --platform android --profile preview",
-    "build:apk:local": "eas build --platform android --profile preview --local"
+    "build:apk:local": "eas build --platform android --profile preview --local",
+    "submit-ios": "eas build --platform ios --profile production --auto-submit"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

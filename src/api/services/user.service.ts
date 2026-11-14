@@ -1,4 +1,5 @@
 import apiClient from '../client';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export interface UserProfile {
   id: string;
@@ -30,9 +31,17 @@ export interface ReferralSummary {
 }
 
 class UserService {
-  async getMe(): Promise<UserProfile> {
-    const response = await apiClient.get('/users/me/');
-    return response.data;
+  // Several screens ask at once on start-up; share one request per session.
+  private profileRequests = new Map<string | null, Promise<UserProfile>>();
+
+  getMe(): Promise<UserProfile> {
+    const token = useAuthStore.getState().token;
+    const existing = this.profileRequests.get(token);
+    if (existing) return existing;
+    const pending = apiClient.get('/users/me/').then(response => response.data as UserProfile)
+      .finally(() => { this.profileRequests.delete(token); });
+    this.profileRequests.set(token, pending);
+    return pending;
   }
 
   async getReferralSummary(): Promise<ReferralSummary> {

@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#666',
+    color: '#4B4B55',
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -169,14 +169,14 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
   },
   configText: {
     fontSize: 11,
-    color: '#999',
+    color: '#6E6E78',
     backgroundColor: '#F5F5F5',
     padding: 16,
     borderRadius: 12,

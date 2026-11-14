@@ -14,6 +14,8 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
 
   return (
     <Text
+      // Keep layouts intact when the phone's text size is turned way up.
+      maxFontSizeMultiplier={1.3}
       // Inter in the weight the style asks for (see constants/fonts).
       style={withInter([
         { color: theme[themeColor ?? 'text'] },

@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   },
   userEmail: {
     fontSize: 14,
-    color: '#666',
+    color: '#4B4B55',
   },
   editBtn: {
     width: 36,
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#999',
+    color: '#6E6E78',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 16,
