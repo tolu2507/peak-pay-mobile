@@ -32,6 +32,8 @@ export interface LoanQuote {
   date_of_first_payment: string;
 }
 
+export type LoanCategory = 'salaried' | 'turnover';
+
 export type LoanApplicationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export interface LoanApplication {
@@ -52,6 +54,7 @@ export interface LoanApplication {
   application_status: 'open' | 'closed';
   eligibility_status: 'eligible' | 'ineligible' | null;
   eligible_amount: string | null;
+  loan_category?: LoanCategory | null;
   eligibility_assessment: string | null;
   repayment_setup_completed_at: string | null;
   offer_accepted_at: string | null;
@@ -72,7 +75,7 @@ export interface OfferCodeDestination {
 
 export interface LoanEligibility {
   assessment_id: string | null;
-  assessment_status: 'not_started' | 'pending_review' | 'eligible' | 'ineligible' | 'refresh_required' | 'expired';
+  assessment_status: 'not_started' | 'pending_review' | 'eligible' | 'ineligible' | 'refresh_required' | 'statement_outdated' | 'expired';
   can_apply: boolean;
   minimum_amount: string;
   disbursement_status: 'pending' | 'disbursed' | null;
@@ -81,7 +84,15 @@ export interface LoanEligibility {
   application_id: string | null;
   application_status: 'open' | 'closed' | null;
   eligibility_status: 'eligible' | 'ineligible' | null;
+  // The most the customer can borrow; any amount from the minimum up to it.
   eligible_amount: string | null;
+  // Set by the decisioning officer with the limit.
+  loan_category?: LoanCategory | null;
+  tenure_months?: number | null;
+  monthly_interest_rate?: string | null;
+  // What the customer repays on the full eligible amount.
+  total_repayment?: string | null;
+  monthly_repayment?: string | null;
 }
 
 export interface LoanTransaction {

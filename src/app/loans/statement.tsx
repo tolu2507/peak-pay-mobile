@@ -17,6 +17,7 @@ import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
 import { useKYCStore } from '@/store/useKYCStore';
 import { parseLoanError, useLoanStore } from '@/store/useLoanStore';
+import { EVIDENCE_NOTICES } from '@/constants/loan';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -46,6 +47,9 @@ const mask = (value: string) => `•••• ${value.slice(-4)}`;
 export default function StatementScreen() {
   const router = useRouter();
   const { submitEligibilityAssessment, isLoading: submitting, error: submissionError } = useLoanStore();
+  const outdatedNotice = useLoanStore((state) =>
+    state.eligibility?.assessment_status === 'statement_outdated' ? EVIDENCE_NOTICES.statement_outdated : undefined,
+  );
   const savedEmployment = useKYCStore((state) => state.currentEmployment?.employment_status);
   const [employmentStatus, setEmploymentStatus] = useState<string | undefined>(savedEmployment);
   const [context, setContext] = useState<StatementContext | null>(null);
@@ -408,6 +412,7 @@ export default function StatementScreen() {
 
               {showStart && context?.available && context.bank_account && !noSupportedAccount && (
                 <>
+                  {!!outdatedNotice && <Notice tone="warning" text={outdatedNotice} />}
                   {current?.status === 'failed' && (
                     <Notice
                       tone="error"

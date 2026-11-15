@@ -17,6 +17,8 @@ export default function LoanStatusScreen() {
 
   // Opened directly (e.g. after the app restarted): work out the step again.
   if (!eligibility) return <Redirect href="/loans/start" />;
+  // The statement went past 14 days: a new one is needed.
+  if (eligibility.assessment_status === 'statement_outdated') return <Redirect href="/loans/statement" />;
 
   const applicationOpen = eligibility.application_status === 'open';
 

@@ -402,8 +402,13 @@ export default function LoanOfferScreen() {
         ['Loan amount', formatNaira(amount)],
         ['Tenor', `${application.duration_in_months} months`],
         ['Interest rate', hasTerms ? `${Number(application.flat_interest_rate)}%` : 'Awaiting final terms'],
-        ['Management fees', termMoney(application.management_fee)],
-        ['Credit life insurance', termMoney(application.credit_life_insurance)],
+        // Older loans may carry fees; new ones are "0.00" and skip these rows.
+        ...(Number(application.management_fee) > 0
+          ? [['Management fees', termMoney(application.management_fee)] as [string, string]]
+          : []),
+        ...(Number(application.credit_life_insurance) > 0
+          ? [['Credit life insurance', termMoney(application.credit_life_insurance)] as [string, string]]
+          : []),
         ['Total repayment amount', termMoney(application.estimated_total_amount)],
         ['Monthly repayment', termMoney(application.monthly_repayment)],
         ['Total number of payments', String(application.duration_in_months)],

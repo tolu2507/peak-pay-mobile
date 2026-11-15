@@ -66,6 +66,8 @@ export type LoanRoute =
 // Where the customer continues, from the backend's view of their application.
 // The address is only needed when no other answer fits.
 export function loanRouteFor(eligibility: LoanEligibility, address: AddressVerification | null): LoanRoute {
+  // Statements are valid for 14 days: an outdated one means sending a new statement.
+  if (eligibility.assessment_status === 'statement_outdated') return '/loans/statement';
   // Approved: set up repayment and accept the offer.
   if (eligibility.application_status === 'open' && eligibility.eligibility_status === 'eligible') return '/loans/offer';
   // Waiting for a decision on an application, or on the documents.
@@ -80,4 +82,5 @@ export const EVIDENCE_NOTICES: Partial<Record<LoanEligibility['assessment_status
   ineligible: 'Your last review did not give you a borrowing limit. You can send updated documents for another review.',
   expired: 'Your borrowing limit expired after 14 days. Send your documents again to refresh it.',
   refresh_required: 'We need newer documents before you can apply.',
+  statement_outdated: 'Your bank statement is more than 14 days old. Share a new statement to continue.',
 };

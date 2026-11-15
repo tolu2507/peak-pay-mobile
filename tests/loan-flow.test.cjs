@@ -77,6 +77,8 @@ test('each eligibility state opens the right screen', () => {
   assert.equal(loanRouteFor(base, recent), '/loans/statement');
   assert.equal(loanRouteFor(base, { ...recent, created_date: '2020-01-01T00:00:00Z' }), '/loans/address');
   assert.equal(loanRouteFor({ ...base, assessment_status: 'expired' }, null), '/loans/address');
+  assert.equal(loanRouteFor({ ...base, assessment_status: 'statement_outdated' }, null), '/loans/statement');
+  assert.equal(loanRouteFor({ ...base, application_status: 'open', assessment_status: 'statement_outdated' }, null), '/loans/statement');
 });
 
 test('repayment history reads the same as the web', () => {
