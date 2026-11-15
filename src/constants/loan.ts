@@ -82,5 +82,6 @@ export const EVIDENCE_NOTICES: Partial<Record<LoanEligibility['assessment_status
   ineligible: 'Your last review did not give you a borrowing limit. You can send updated documents for another review.',
   expired: 'Your borrowing limit expired after 14 days. Send your documents again to refresh it.',
   refresh_required: 'We need newer documents before you can apply.',
-  statement_outdated: 'Your bank statement is more than 14 days old. Share a new statement to continue.',
+  statement_outdated:
+    "Your bank statement is no longer recent, so we couldn't finish reviewing it. Pull a new statement from your bank and we'll review your eligibility again.",
 };

@@ -198,6 +198,8 @@ export default function HomeScreen() {
                 <ThemedText style={styles.balanceLabel}>Your approved limit · choose your loan amount</ThemedText>
               ) : eligibility?.assessment_status === 'pending_review' ? (
                 <ThemedText style={styles.balanceLabel}>Eligibility review in progress</ThemedText>
+              ) : eligibility?.assessment_status === 'statement_outdated' && !eligibility.application_id ? (
+                <ThemedText style={styles.balanceLabel}>Your bank statement is no longer recent · pull a new one to continue</ThemedText>
               ) : null}
               <TouchableOpacity
                 style={styles.requestBtn}

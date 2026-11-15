@@ -55,7 +55,9 @@ export default function ApplyLoanScreen() {
   const amountNumber = Number(loanDetails.amount) || 0;
   const tooLow = amountNumber > 0 && amountNumber < minimumAmount;
   const tooHigh = amountNumber > maximumAmount;
-  const isFormValid = !!loanDetails.purpose && amountNumber > 0 && !tooLow && !tooHigh && !!loanDetails.duration;
+  // The amount can be priced as soon as it is in range and has a tenure.
+  const canQuote = amountNumber > 0 && !tooLow && !tooHigh && !!loanDetails.duration;
+  const isFormValid = canQuote && !!loanDetails.purpose;
 
   // One tenure (set by the officer) is fixed, not a choice.
   const fixedTenor = tenors.length === 1 ? tenors[0] : null;
@@ -65,12 +67,13 @@ export default function ApplyLoanScreen() {
     }
   }, [fixedTenor, loanDetails.duration, setLoanField]);
 
-  // Prices the loan once the customer stops typing, like the web.
+  // Prices the loan once the customer stops typing, like the web. The figures
+  // come from the server, which uses the rate and tenure on the eligibility decision.
   useEffect(() => {
-    if (!isFormValid) return;
+    if (!canQuote) return;
     const timer = setTimeout(() => void getQuote().catch(() => undefined), QUOTE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [isFormValid, getQuote, loanDetails.amount, loanDetails.purpose, loanDetails.duration]);
+  }, [canQuote, getQuote, loanDetails.amount, loanDetails.purpose, loanDetails.duration]);
 
   // Without a borrowing limit there is nothing to apply for yet.
   if (!eligibility?.can_apply) return <Redirect href="/loans/start" />;
@@ -83,21 +86,20 @@ export default function ApplyLoanScreen() {
     options[key].find((option) => option.value === value)?.label || '';
 
   // The breakdown is priced by the server (/loan/quote/), as on the web.
-  // Fees only show when charged; new loans have none.
-  const charged = (value: string) => Number(value) > 0;
+  // Fees are only charged on loans priced from the older pricing table.
+  const fees = quote
+    ? [
+      { label: 'Management fee', amount: quote.management_fee },
+      { label: 'Credit life insurance', amount: quote.credit_life_insurance },
+    ].filter((fee) => Number(fee.amount) > 0)
+    : [];
   const summaryDetails = quote ? [
     { label: 'Amount you will receive', value: formatNaira(quote.amount_to_receive) },
-    { label: 'Loan amount', value: formatNaira(quote.loan_amount) },
     { label: 'Monthly flat interest rate', value: percent(quote.monthly_interest_rate) },
     { label: 'Loan duration', value: labelFor('duration', String(quote.duration_in_months)) || `${quote.duration_in_months} months` },
     { label: 'Total interest', value: formatNaira(quote.interest) },
-    ...(charged(quote.management_fee)
-      ? [{ label: 'Management fee', value: `${percent(quote.management_fee_percentage)} flat` }]
-      : []),
-    ...(charged(quote.credit_life_insurance)
-      ? [{ label: 'Credit life insurance', value: `${percent(quote.credit_life_insurance_percentage)} flat` }]
-      : []),
-    { label: 'Estimated total repayment', value: formatNaira(quote.estimated_total_repayment) },
+    ...fees.map((fee) => ({ label: fee.label, value: formatNaira(fee.amount) })),
+    { label: 'Total repayment', value: formatNaira(quote.estimated_total_repayment) },
     { label: 'Date of first payment', value: formatDate(quote.date_of_first_payment) },
   ] : [];
 
@@ -124,20 +126,9 @@ export default function ApplyLoanScreen() {
     }
   };
 
-  // Over the limit gets its own card with a way out, so it isn't listed here.
-  const amountMessage = fieldErrors.amount && !tooHigh
-    ? fieldErrors.amount
-    : tooLow ? `The minimum amount is ${formatNaira(minimumAmount)}.` : null;
-
-  // Quick picks between the minimum and the limit, rounded to ₦1,000.
-  const quickAmounts = Array.from(new Set(
-    [0.25, 0.5, 0.75, 1]
-      .map((share) => (share === 1 ? maximumAmount : Math.floor((maximumAmount * share) / 1000) * 1000))
-      .filter((value) => value >= minimumAmount && value <= maximumAmount),
-  ));
-  const setAmount = (value: number) => setLoanField('amount', String(value));
-  // One decision gives one loan: whatever is left of the limit goes away.
-  const belowLimit = isFormValid && amountNumber < maximumAmount;
+  const amountMessage = fieldErrors.amount
+    || (tooHigh ? `You can borrow up to ${formatNaira(maximumAmount)}.` : null)
+    || (tooLow ? `The minimum is ${formatNaira(minimumAmount)}.` : null);
 
   const openDropdown = (key: DropdownKey) => {
     setActiveDropdown(key);
@@ -168,6 +159,7 @@ export default function ApplyLoanScreen() {
           <View style={styles.limitCard}>
             <ThemedText style={styles.limitLabel}>You can borrow up to</ThemedText>
             <ThemedText style={styles.limitValue}>{formatNaira(maximumAmount)}</ThemedText>
+            <ThemedText style={styles.limitNote}>Enter the amount you want; you only repay on what you take.</ThemedText>
           </View>
 
           <View style={styles.form}>
@@ -191,52 +183,11 @@ export default function ApplyLoanScreen() {
               value={loanDetails.amount ? Number(loanDetails.amount).toLocaleString('en-NG') : ''}
               onChangeText={(val) => setLoanField('amount', val.replace(/\D/g, '').slice(0, 9))}
             />
-            {tooHigh ? (
-              <View style={styles.overLimitCard}>
-                <View style={styles.overLimitRow}>
-                  <Ionicons name="information-circle" size={20} color="#FF7A00" />
-                  <ThemedText style={styles.overLimitTitle}>
-                    You asked for {formatNaira(amountNumber)}, but your limit is {formatNaira(maximumAmount)}
-                  </ThemedText>
-                </View>
-                <ThemedText style={styles.overLimitBody}>
-                  You can still borrow any amount from {formatNaira(minimumAmount)} up to {formatNaira(maximumAmount)}.
-                </ThemedText>
-                <TouchableOpacity style={styles.overLimitButton} onPress={() => setAmount(maximumAmount)}>
-                  <ThemedText style={styles.overLimitButtonText}>Borrow {formatNaira(maximumAmount)} instead</ThemedText>
-                </TouchableOpacity>
-              </View>
-            ) : amountMessage ? (
+            {amountMessage ? (
               <ThemedText style={styles.fieldError}>{amountMessage}</ThemedText>
             ) : (
               <ThemedText style={styles.hint}>
-                Any amount from {formatNaira(minimumAmount)} to {formatNaira(maximumAmount)}
-              </ThemedText>
-            )}
-
-            {quickAmounts.length > 1 && (
-              <View style={styles.chips}>
-                {quickAmounts.map((value) => {
-                  const selected = amountNumber === value;
-                  return (
-                    <TouchableOpacity
-                      key={value}
-                      style={[styles.chip, selected && styles.chipSelected]}
-                      onPress={() => setAmount(value)}
-                    >
-                      <ThemedText style={[styles.chipText, selected && styles.chipTextSelected]}>
-                        {value === maximumAmount ? `Max · ${formatNaira(value)}` : formatNaira(value)}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            {belowLimit && (
-              <ThemedText style={styles.hint}>
-                Your limit covers one loan. If you take {formatNaira(amountNumber)}, the remaining{' '}
-                {formatNaira(maximumAmount - amountNumber)} won&apos;t be available afterwards.
+                Minimum {formatNaira(minimumAmount)} · Up to {formatNaira(maximumAmount)}
               </ThemedText>
             )}
 
@@ -246,6 +197,7 @@ export default function ApplyLoanScreen() {
                 <View style={[styles.dropdownTrigger, styles.fixedField]}>
                   <ThemedText style={styles.dropdownValue}>{fixedTenor.label}</ThemedText>
                 </View>
+                <ThemedText style={styles.hint}>Set with your loan offer. You repay in equal monthly payments.</ThemedText>
               </View>
             ) : (
             <View style={styles.dropdownContainer}>
@@ -265,7 +217,7 @@ export default function ApplyLoanScreen() {
 
           {error && <ThemedText style={styles.fieldError}>{error}</ThemedText>}
 
-          {isFormValid && isQuoting && !quote && (
+          {canQuote && isQuoting && !quote && (
             <SkeletonGroup style={styles.summaryContainer}>
               <Skeleton height={88} radius={16} />
               <SkeletonDetails rows={4} />
@@ -275,7 +227,7 @@ export default function ApplyLoanScreen() {
           {quote && (
             <View style={styles.summaryContainer}>
               <View style={styles.monthlyPaymentCard}>
-                <ThemedText style={styles.monthlyLabel}>Estimated Monthly Payment</ThemedText>
+                <ThemedText style={styles.monthlyLabel}>Monthly Repayment</ThemedText>
                 <ThemedText style={styles.monthlyValue}>{formatNaira(quote.monthly_repayment)}</ThemedText>
               </View>
 
@@ -349,38 +301,8 @@ const styles = StyleSheet.create({
   },
   limitLabel: { fontSize: 13, color: '#666' },
   limitValue: { fontSize: 22, fontWeight: '700', color: '#000', marginTop: 4, lineHeight: 28 },
+  limitNote: { fontSize: 13, color: '#555', marginTop: 6, lineHeight: 18 },
   fixedField: { backgroundColor: '#F4F4F5' },
-  overLimitCard: {
-    borderWidth: 1,
-    borderColor: '#FF7A00',
-    backgroundColor: '#FFF9F2',
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
-  },
-  overLimitRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  overLimitTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: '#000', lineHeight: 20 },
-  overLimitBody: { fontSize: 13, color: '#555', lineHeight: 18 },
-  overLimitButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FF7A00',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  overLimitButtonText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#E4E4E7',
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#FFF',
-  },
-  chipSelected: { borderColor: '#FF7A00', backgroundColor: '#FFF4E8' },
-  chipText: { fontSize: 13, color: '#333' },
-  chipTextSelected: { color: '#FF7A00', fontWeight: '600' },
   hint: {
     color: '#1E9F85',
     fontSize: 12,

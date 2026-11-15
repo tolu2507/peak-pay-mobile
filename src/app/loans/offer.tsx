@@ -401,10 +401,10 @@ export default function LoanOfferScreen() {
     ? [
         ['Loan amount', formatNaira(amount)],
         ['Tenor', `${application.duration_in_months} months`],
-        ['Interest rate', hasTerms ? `${Number(application.flat_interest_rate)}%` : 'Awaiting final terms'],
+        ['Monthly flat interest rate', hasTerms ? `${Number(application.flat_interest_rate)}%` : 'Awaiting final terms'],
         // Older loans may carry fees; new ones are "0.00" and skip these rows.
         ...(Number(application.management_fee) > 0
-          ? [['Management fees', termMoney(application.management_fee)] as [string, string]]
+          ? [['Management fee', termMoney(application.management_fee)] as [string, string]]
           : []),
         ...(Number(application.credit_life_insurance) > 0
           ? [['Credit life insurance', termMoney(application.credit_life_insurance)] as [string, string]]
@@ -440,6 +440,13 @@ export default function LoanOfferScreen() {
         ['Loan Amount', formatNaira(amount, true)],
         ['Interest Rate', hasTerms ? `${Number(application.flat_interest_rate)}%` : null],
         ['Loan Term', `${application.duration_in_months} months`],
+        // Fees are only charged on loans priced from the older pricing table.
+        ...([
+          ['Management Fee', application.management_fee],
+          ['Credit Life Insurance', application.credit_life_insurance],
+        ] as Array<[string, string | null]>)
+          .filter(([, fee]) => Number(fee) > 0)
+          .map(([label, fee]): [string, string | null] => [label, hasTerms ? formatNaira(fee, true) : null]),
         ['Monthly Payment', hasTerms ? formatNaira(application.monthly_repayment, true) : null],
         ['First Payment Due Date', application.date_of_first_payment ? formatLetterDate(application.date_of_first_payment) : null],
         ['Total Repayment Amount', hasTerms ? formatNaira(application.estimated_total_amount, true) : null],
