@@ -1,4 +1,5 @@
 import apiClient from '../client';
+import type { CodeChannel, OfferCodeDestination } from './loan.service';
 
 export interface SecurityQuestion {
   id: string;
@@ -170,6 +171,20 @@ class KycService {
     return response.data;
   }
 
+  // Forgot PIN: emails a 6-digit code to the account email (never SMS).
+  // Only the newest code works; at most 5 codes an hour (429 after that).
+  async sendPinChangeCode(): Promise<{ channel: 'email'; destination: string }> {
+    const response = await apiClient.post('/kyc/transaction-pin/change-otp/', undefined, { skipErrorToast: true });
+    return response.data.data;
+  }
+
+  // Sets a new PIN using the emailed code instead of the current PIN.
+  // The caller checks the PIN was typed twice the same; the API takes it once.
+  async changePinWithCode(otpCode: string, pin: string) {
+    const response = await apiClient.post('/kyc/transaction-pin/change/', { otp_code: otpCode, pin }, { skipErrorToast: true });
+    return response.data;
+  }
+
   async verifySmileId(data: SmileIdVerificationRequest): Promise<SmileIdConfig> {
     const response = await apiClient.post('/kyc/smileid-verification/', data);
     return response.data;
@@ -312,8 +327,9 @@ class KycService {
   }
 
   // Sends the code needed to add another bank account; returns where it went.
-  async sendBankChangeCode(): Promise<{ channel: 'sms' | 'email'; destination: string }> {
-    const response = await apiClient.post('/kyc/bank-details/change-otp/', {}, { skipErrorToast: true });
+  // Same channel rules and limits as the loan offer code.
+  async sendBankChangeCode(channel?: CodeChannel): Promise<OfferCodeDestination> {
+    const response = await apiClient.post('/kyc/bank-details/change-otp/', channel ? { channel } : {}, { skipErrorToast: true });
     return response.data.data;
   }
 
@@ -334,3 +350,37 @@ class KycService {
 }
 
 export default new KycService();
+
+// What the Forgot PIN screen should do with a failed send or change.
+// field: show the message under that input; resend: the code is used up, so
+// offer a new one now; createPin: the customer has no PIN yet.
+export interface PinChangeProblem {
+  message: string;
+  field?: 'otp' | 'pin';
+  resend?: boolean;
+  createPin?: boolean;
+}
+
+export function describePinChangeError(error: unknown): PinChangeProblem {
+  const failure = error as { response?: { status?: number; data?: any } };
+  const status = failure?.response?.status;
+  const data = failure?.response?.data;
+  if (status === 429) return { message: 'Too many requests. Try again later.' };
+  const items: { attr?: string; detail?: string; message?: string }[] = Array.isArray(data?.errors) ? data.errors : [];
+  for (const item of items) {
+    const text = item.detail || item.message || '';
+    if (item.attr === 'otp_code' && text) return { message: text, field: 'otp' };
+    if (item.attr === 'pin' && text) return { message: text, field: 'pin' };
+  }
+  const message: string = items.map((item) => item.detail || item.message).find(Boolean)
+    || (typeof data?.message === 'string' && data.message)
+    || (typeof data?.detail === 'string' && data.detail)
+    || (typeof data === 'string' && data)
+    || 'Something went wrong. Try again.';
+  // Field errors may also arrive as "otp_code: ..." or "pin: ...".
+  const prefixed = /^(otp_code|pin):\s*([\s\S]+)$/.exec(message);
+  if (prefixed) return { message: prefixed[2], field: prefixed[1] === 'pin' ? 'pin' : 'otp' };
+  if (/set your transaction pin first/i.test(message)) return { message, createPin: true };
+  if (/request a new one/i.test(message)) return { message, resend: true };
+  return { message };
+}

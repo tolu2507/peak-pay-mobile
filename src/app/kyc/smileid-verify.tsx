@@ -85,7 +85,9 @@ export default function SmileIdVerificationScreen() {
 
   const handleError = (error: any) => {
     console.error('SmileID selfie capture error:', error);
-    Toast.show('Verification failed. Please try again.', {
+    // Show why it failed: the SDK's own reason, or ours from reading the photos.
+    const reason = typeof error === 'string' ? error : error?.error || error?.message;
+    Toast.show(reason ? `Verification failed: ${reason}` : 'Verification failed. Please try again.', {
       type: 'error',
       position: 'top',
       backgroundColor: '#FF3B30',

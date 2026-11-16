@@ -8,6 +8,7 @@ import { BottomSheet } from '@/shared/ui/templates/bottom-sheet';
 import type { BottomSheetMethods } from '@/shared/ui/templates/bottom-sheet/types';
 import { normalizeNigerianPhone, useKYCStore } from '@/store/useKYCStore';
 import KycService, { type ResolvedBankAccount } from '@/api/services/kyc.service';
+import { otherChannelLabel, type CodeChannel, type OfferCodeDestination } from '@/api/services/loan.service';
 import { salaryBanks } from '@/constants/banks';
 import { PopTextInput } from '@/shared/ui/base/pop-text-input';
 import { loanStyles } from '@/components/loans/loan-ui';
@@ -114,18 +115,20 @@ export default function BankDetailsScreen() {
   // A different bank from the saved one needs a code and the transaction PIN.
   const isNewBank = !!saved && !!resolved && isResolved
     && (saved.bank_code !== resolved.bank_code || saved.account_number !== resolved.account_number);
-  const [codeDestination, setCodeDestination] = useState('');
+  const [codeSentTo, setCodeSentTo] = useState<OfferCodeDestination | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [pin, setPin] = useState('');
   const [codeError, setCodeError] = useState('');
   const [sendingCode, setSendingCode] = useState(false);
 
-  const sendCode = async () => {
+  // channel: resend on that channel; none lets the server choose (first send).
+  // Only the newest code works, so any code already typed is cleared.
+  const sendCode = async (channel?: CodeChannel) => {
     setSendingCode(true);
     setCodeError('');
     try {
-      const sent = await KycService.sendBankChangeCode();
-      setCodeDestination(sent.destination);
+      setCodeSentTo(await KycService.sendBankChangeCode(channel));
+      setOtpCode('');
     } catch (sendError: any) {
       setCodeError(sendError?.response?.data?.message || 'We could not send your code. Try again.');
     } finally {
@@ -159,7 +162,7 @@ export default function BankDetailsScreen() {
       finish();
     } catch (error: any) {
       // The code is single use; ask for a new one after any failure.
-      if (isNewBank) { setOtpCode(''); setPin(''); setCodeDestination(''); }
+      if (isNewBank) { setOtpCode(''); setPin(''); setCodeSentTo(null); }
       Toast.show(useKYCStore.getState().error || error?.message || 'Failed to save bank details', { type: 'error', position: "top", backgroundColor: "#FF3B30" });
     }
   };
@@ -255,14 +258,14 @@ export default function BankDetailsScreen() {
                   Adding a new bank account needs a code and your transaction PIN. Your current account stays linked, and any loan you have already accepted is still paid into it.
                 </ThemedText>
                 {!!codeError && <ThemedText style={[styles.warning, { color: '#FF3B30' }]}>{codeError}</ThemedText>}
-                {!codeDestination ? (
+                {!codeSentTo ? (
                   <TouchableOpacity style={styles.sendCode} onPress={() => void sendCode()} disabled={sendingCode}>
                     <ThemedText style={styles.sendCodeText}>{sendingCode ? 'Sending…' : 'Send code'}</ThemedText>
                   </TouchableOpacity>
                 ) : (
                   <>
                     <View>
-                      <ThemedText style={styles.fieldLabel}>Code sent to {codeDestination}</ThemedText>
+                      <ThemedText style={styles.fieldLabel}>Code sent to {codeSentTo.destination}</ThemedText>
                       <PopTextInput
                         style={loanStyles.input}
                         keyboardType="number-pad"
@@ -284,6 +287,14 @@ export default function BankDetailsScreen() {
                         onChangeText={(v) => setPin(v.replace(/\D/g, '').slice(0, 4))}
                       />
                     </View>
+                    <TouchableOpacity onPress={() => void sendCode(codeSentTo.channel)} disabled={sendingCode}>
+                      <ThemedText style={styles.codeLink}>{sendingCode ? 'Sending…' : 'Send a new code'}</ThemedText>
+                    </TouchableOpacity>
+                    {!!codeSentTo.alternative && (
+                      <TouchableOpacity onPress={() => void sendCode(codeSentTo.alternative!.channel)} disabled={sendingCode}>
+                        <ThemedText style={styles.codeLink}>{otherChannelLabel(codeSentTo.alternative)}</ThemedText>
+                      </TouchableOpacity>
+                    )}
                   </>
                 )}
               </View>
@@ -475,6 +486,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FF7A00',
+  },
+  codeLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF7A00',
+    textAlign: 'center',
+    paddingVertical: 4,
   },
   consentText: {
     fontSize: 12,

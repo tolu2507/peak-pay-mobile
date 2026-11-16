@@ -1,7 +1,7 @@
 import KycService, { type BankDetailsRecord } from '@/api/services/kyc.service';
 import { PopTextInput } from '@/shared/ui/base/pop-text-input';
 import { Skeleton, SkeletonDetails, SkeletonGroup, SkeletonHero } from '@/shared/ui/base/skeleton';
-import LoanService, { type AddressVerification, type LoanApplication, type OfferCodeDestination } from '@/api/services/loan.service';
+import LoanService, { otherChannelLabel, type AddressVerification, type CodeChannel, type LoanApplication, type OfferCodeDestination } from '@/api/services/loan.service';
 import RepaymentService, { setupProgress, type RepaymentMethod, type RepaymentOptions, type SetupProgress } from '@/api/services/repayment.service';
 import { directDebitAccounts, payoutAccounts } from '@/constants/banks';
 import { ThemedText } from '@/components/themed-text';
@@ -333,12 +333,13 @@ export default function LoanOfferScreen() {
     }
   };
 
-  const sendCode = async () => {
+  // channel: resend on that channel; none lets the server choose (first send).
+  const sendCode = async (channel?: CodeChannel) => {
     if (!application) return;
     setNotice('');
     setBusy(true);
     try {
-      setCodeSentTo(await LoanService.sendOfferCode(application.id));
+      setCodeSentTo(await LoanService.sendOfferCode(application.id, channel));
       setOtp('');
       setPin('');
       setDialog('otp');
@@ -763,7 +764,10 @@ export default function LoanOfferScreen() {
         />
         {!!notice && <ThemedText style={ls.errorText}>{notice}</ThemedText>}
         <PrimaryButton width={DIALOG_BUTTON_WIDTH} label="Proceed" disabled={otp.length !== 6} onPress={() => { setNotice(''); setPin(''); setDialog('pin'); }} />
-        <TextLink label={busy ? 'Sending…' : 'Send a new code'} disabled={busy} onPress={() => void sendCode()} />
+        <TextLink label={busy ? 'Sending…' : 'Send a new code'} disabled={busy} onPress={() => void sendCode(codeSentTo?.channel)} />
+        {!!codeSentTo?.alternative && (
+          <TextLink label={otherChannelLabel(codeSentTo.alternative)} disabled={busy} onPress={() => void sendCode(codeSentTo.alternative!.channel)} />
+        )}
       </Sheet>
 
       <Sheet visible={dialog === 'pin'} title="Enter Transaction PIN" onClose={closeDialog}>

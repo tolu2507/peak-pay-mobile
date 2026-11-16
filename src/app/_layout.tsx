@@ -24,6 +24,11 @@ const config = new SmileConfig(
   'https://testapi.smileidentity.com/v1/'   // Test lambda URL
 );
 
+// Start the SDK once per app launch. Calling this during render restarted it
+// on every navigation, which could cut off a selfie capture in progress.
+// true = sandbox; switch to false with production credentials.
+initialize(true, true, config).catch((error) => console.error('SmileID initialize failed:', error));
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const { isAuthenticated } = useAuthStore();
@@ -31,8 +36,6 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
   const [fontsLoaded, fontError] = useFonts(INTER_FONTS);
-  // Initialize with configuration object
-  initialize(true, true, config);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {

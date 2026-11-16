@@ -70,10 +70,22 @@ export interface LoanApplication {
   modified_date: string;
 }
 
+export type CodeChannel = 'sms' | 'email';
+
+// Where a confirmation code went, and the other way it can be sent (null when
+// the customer only has one of phone or email on file).
 export interface OfferCodeDestination {
-  channel: 'sms' | 'email';
+  channel: CodeChannel;
+  // Masked, e.g. "•••• 4567" or "al•••@gmail.com".
   destination: string;
+  alternative: { channel: CodeChannel; destination: string } | null;
 }
+
+// Text for the link that sends the code the other way instead.
+export const otherChannelLabel = (alternative: { channel: CodeChannel; destination: string }) =>
+  alternative.channel === 'email'
+    ? `Send it to my email (${alternative.destination}) instead`
+    : `Send it by SMS to ${alternative.destination} instead`;
 
 export interface LoanEligibility {
   assessment_id: string | null;
@@ -204,9 +216,11 @@ class LoanService {
     return response.data.data;
   }
 
-  // Sends the code that confirms the offer to the customer's phone or email.
-  async sendOfferCode(id: string): Promise<OfferCodeDestination> {
-    const response = await apiClient.post(`/loan/applications/${id}/offer-otp/`, {}, inline);
+  // Sends the code that confirms the offer. Without a channel the server picks
+  // SMS when a phone is on file, else email. Only the newest code works, and
+  // at most 5 codes an hour across both channels (429 after that).
+  async sendOfferCode(id: string, channel?: CodeChannel): Promise<OfferCodeDestination> {
+    const response = await apiClient.post(`/loan/applications/${id}/offer-otp/`, channel ? { channel } : {}, inline);
     return response.data.data;
   }
 
