@@ -22,6 +22,8 @@ import LoanService, { type LoanTransaction } from '@/api/services/loan.service';
 
 const FILTERS = ['All', 'Credit', 'Debit'] as const;
 
+const LOAN_PROGRESS = ['Applied', 'Approved', 'Paid out'];
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function HomeScreen() {
@@ -40,6 +42,14 @@ export default function HomeScreen() {
   // One loan at a time (until top-ups are decided): while a paid-out loan is
   // being repaid, Manage Loan is the main action and Request Loan is off.
   const runningLoan = eligibility?.has_running_loan === true;
+  // Where the application is, for the loan card's tracker: 0 applied (under
+  // review), 1 approved (offer waiting), 2 paid out.
+  const loanStep = status === 'applied' ? 0 : isPaidOut || runningLoan ? 2 : 1;
+  const loanTone = !isApplied
+    ? { label: 'Action required', fg: '#FFB45C', bg: 'rgba(255,138,0,0.16)' }
+    : loanStep === 0
+      ? { label: 'Under review', fg: '#FFD7A8', bg: 'rgba(255,215,168,0.14)' }
+      : { label: loanStep === 2 ? 'Active' : 'Approved', fg: '#5EE0B5', bg: 'rgba(30,159,133,0.22)' };
   const [filter, setFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
   const { fullName, initials, photo, loading: profileLoading } = useCurrentUser();
   // True until the first KYC/loan sync settles, so the cards don't flash the
@@ -161,31 +171,68 @@ export default function HomeScreen() {
 
           {/* Eligibility/Loan Status Card */}
           {!booting && (!isKYCComplete || isApplied) && (
-            <View style={[styles.eligibilityCard, isApplied && { backgroundColor: '#F0F9FF' }]}>
-              <View style={styles.eligibilityContent}>
-                <ThemedText style={styles.eligibilityLabel}>
-                  {isApplied ? `You applied for ₦${Number(appliedAmount).toLocaleString('en-NG')}` : 'You may be eligible for up to ₦10,000,000'}
-                </ThemedText>
-                <View style={styles.statusRow}>
-                  <ThemedText style={[styles.statusTag, isApplied && { backgroundColor: status === 'applied' ? '#E0F2FE' : '#DCFCE7', color: status === 'applied' ? '#0369A1' : '#15803D' }]}>
-                    {isApplied ? (status === 'applied' ? 'Under Review' : isPaidOut || runningLoan ? 'Active' : 'Approved') : 'Action Required'}
-                  </ThemedText>
+            <View style={styles.loanCard}>
+              {/* Soft rings for depth, in the brand orange. */}
+              <View pointerEvents="none" style={[styles.loanRing, styles.loanRingLarge]} />
+              <View pointerEvents="none" style={[styles.loanRing, styles.loanRingSmall]} />
+
+              <View style={styles.loanTopRow}>
+                <ThemedText style={styles.loanEyebrow}>{isApplied ? 'Your loan' : 'Get started'}</ThemedText>
+                <View style={[styles.loanPill, { backgroundColor: loanTone.bg }]}>
+                  <View style={[styles.loanPillDot, { backgroundColor: loanTone.fg }]} />
+                  <ThemedText style={[styles.loanPillText, { color: loanTone.fg }]}>{loanTone.label}</ThemedText>
                 </View>
+              </View>
+
+              <ThemedText style={styles.loanCaption}>{isApplied ? 'You applied for' : 'You may be eligible for up to'}</ThemedText>
+              <ThemedText style={styles.loanAmount} numberOfLines={1} adjustsFontSizeToFit>
+                ₦{(isApplied ? Number(appliedAmount) : 10000000).toLocaleString('en-NG')}
+              </ThemedText>
+
+              {isApplied ? (
+                <View style={styles.loanSteps}>
+                  {LOAN_PROGRESS.map((label, index) => {
+                    const done = index < loanStep;
+                    const current = index === loanStep;
+                    return (
+                      <React.Fragment key={label}>
+                        {index > 0 && <View style={[styles.loanStepLine, index <= loanStep && styles.loanStepLineDone]} />}
+                        <View style={styles.loanStep}>
+                          <View style={[styles.loanStepDot, done && styles.loanStepDotDone, current && styles.loanStepDotCurrent]}>
+                            {done && <Ionicons name="checkmark" size={12} color="#3D2100" />}
+                          </View>
+                          <ThemedText style={[styles.loanStepLabel, (done || current) && styles.loanStepLabelActive]}>{label}</ThemedText>
+                        </View>
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+              ) : (
+                <ThemedText style={styles.loanHint}>Finish your KYC to see how much you can borrow.</ThemedText>
+              )}
+
+              {isApplied && status === 'applied' ? (
+                <View style={styles.loanReviewing}>
+                  <Ionicons name="hourglass-outline" size={16} color="#FFD7A8" />
+                  <ThemedText style={styles.loanReviewingText}>We&apos;re reviewing your application</ThemedText>
+                </View>
+              ) : (
                 <TouchableOpacity
-                  style={[styles.getItBtn, isApplied && { backgroundColor: status === 'applied' ? '#CCC' : '#1E9F85' }]}
+                  style={styles.loanCta}
+                  activeOpacity={0.85}
                   onPress={() => {
                     if (!isApplied) openKyc();
                     // Paid out: manage it. Approved: set up repayment and accept the offer.
                     else if (isPaidOut || runningLoan) router.push('/(tabs)/loans');
                     else if (status === 'approved') router.push('/loans/start');
                   }}
-                  disabled={isApplied && status === 'applied'}
                 >
-                  <ThemedText style={styles.getItText}>
-                    {isApplied ? (status === 'applied' ? 'Reviewing...' : isPaidOut || runningLoan ? 'Manage Loan' : 'Accept Offer') : 'Get it now'}
+                  <ThemedText style={styles.loanCtaText}>
+                    {!isApplied ? 'Get it now' : isPaidOut || runningLoan ? 'Manage Loan' : 'Accept Offer'}
                   </ThemedText>
+                  <Ionicons name="arrow-forward" size={18} color="#FFF" />
                 </TouchableOpacity>
-              </View>
+              )}
             </View>
           )}
 
@@ -291,23 +338,115 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  eligibilityContent: {
-    width: "100%",
-  },
-  statusRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  statusTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    fontSize: 12,
-    fontWeight: '700',
-    backgroundColor: '#FFFBEB',
-    color: '#B45309',
+  loanCard: {
+    backgroundColor: '#3D2100',
+    borderRadius: 24,
+    padding: 22,
+    marginBottom: 20,
     overflow: 'hidden',
+    ...Shadows.card,
   },
+  loanRing: {
+    position: 'absolute',
+    borderRadius: 999,
+    borderColor: 'rgba(255,138,0,0.18)',
+  },
+  loanRingLarge: { width: 220, height: 220, borderWidth: 28, top: -90, right: -80 },
+  loanRingSmall: { width: 90, height: 90, borderWidth: 14, top: 70, right: -30, borderColor: 'rgba(255,138,0,0.10)' },
+  loanTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  loanEyebrow: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  loanPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  loanPillDot: { width: 6, height: 6, borderRadius: 3 },
+  loanPillText: { fontSize: 12, fontWeight: '700' },
+  loanCaption: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 4,
+  },
+  loanAmount: {
+    fontSize: 34,
+    lineHeight: 42,
+    fontWeight: '700',
+    color: '#FFF',
+    letterSpacing: -0.5,
+  },
+  loanHint: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 8,
+  },
+  loanSteps: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 22,
+  },
+  loanStep: { alignItems: 'center', width: 64 },
+  loanStepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loanStepDotDone: { backgroundColor: '#FF8A00', borderColor: '#FF8A00' },
+  loanStepDotCurrent: { borderColor: '#FF8A00', backgroundColor: 'rgba(255,138,0,0.25)' },
+  loanStepLine: {
+    flex: 1,
+    height: 2,
+    marginTop: 9,
+    marginHorizontal: -22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  loanStepLineDone: { backgroundColor: '#FF8A00' },
+  loanStepLabel: {
+    fontSize: 11,
+    marginTop: 6,
+    color: 'rgba(255,255,255,0.45)',
+    fontWeight: '600',
+  },
+  loanStepLabelActive: { color: '#FFF' },
+  loanCta: {
+    marginTop: 22,
+    backgroundColor: '#FF7A00',
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loanCtaText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  loanReviewing: {
+    marginTop: 22,
+    borderRadius: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  loanReviewingText: { color: '#FFD7A8', fontSize: 14, fontWeight: '600' },
   container: {
     flex: 1,
     backgroundColor: '#FFF',
@@ -373,35 +512,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
     marginLeft: 8,
-  },
-  eligibilityCard: {
-    backgroundColor: '#E6F4F1',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    ...Shadows.card,
-  },
-  eligibilityLabel: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: '#000',
-    marginBottom: 12,
-    // maxWidth: '70%',
-  },
-  getItBtn: {
-    backgroundColor: '#1E9F85',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignSelf: 'flex-end',
-  },
-  getItText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '700',
   },
   balanceCard: {
     backgroundColor: '#FFF2E6',
