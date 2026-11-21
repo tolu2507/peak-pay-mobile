@@ -1,7 +1,8 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { openLoansTab } from '@/lib/loans-tab';
 import React from 'react';
 import { Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +29,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { form } = useSignupStore();
   const { user: authUser } = useAuthStore();
   const kycState = useKYCStore();
@@ -42,10 +44,16 @@ export default function HomeScreen() {
   // One loan at a time (until top-ups are decided): while a paid-out loan is
   // being repaid, Manage Loan is the main action and Request Loan is off.
   const runningLoan = eligibility?.has_running_loan === true;
+  // Only a live application shows on the loan card: one still open (under review
+  // or waiting for the offer), or a paid-out loan still being repaid. A closed,
+  // declined or repaid one doesn't.
+  const hasLiveLoan = isApplied && !!application && (
+    isPaidOut ? eligibility?.has_running_loan !== false : application.application_status === 'open'
+  );
   // Where the application is, for the loan card's tracker: 0 applied (under
   // review), 1 approved (offer waiting), 2 paid out.
   const loanStep = status === 'applied' ? 0 : isPaidOut || runningLoan ? 2 : 1;
-  const loanTone = !isApplied
+  const loanTone = !hasLiveLoan
     ? { label: 'Action required', fg: '#FFB45C', bg: 'rgba(255,138,0,0.16)' }
     : loanStep === 0
       ? { label: 'Under review', fg: '#FFD7A8', bg: 'rgba(255,215,168,0.14)' }
@@ -170,26 +178,26 @@ export default function HomeScreen() {
           )}
 
           {/* Eligibility/Loan Status Card */}
-          {!booting && (!isKYCComplete || isApplied) && (
+          {!booting && (!isKYCComplete || hasLiveLoan) && (
             <View style={styles.loanCard}>
               {/* Soft rings for depth, in the brand orange. */}
               <View pointerEvents="none" style={[styles.loanRing, styles.loanRingLarge]} />
               <View pointerEvents="none" style={[styles.loanRing, styles.loanRingSmall]} />
 
               <View style={styles.loanTopRow}>
-                <ThemedText style={styles.loanEyebrow}>{isApplied ? 'Your loan' : 'Get started'}</ThemedText>
+                <ThemedText style={styles.loanEyebrow}>{hasLiveLoan ? 'Your loan' : 'Get started'}</ThemedText>
                 <View style={[styles.loanPill, { backgroundColor: loanTone.bg }]}>
                   <View style={[styles.loanPillDot, { backgroundColor: loanTone.fg }]} />
                   <ThemedText style={[styles.loanPillText, { color: loanTone.fg }]}>{loanTone.label}</ThemedText>
                 </View>
               </View>
 
-              <ThemedText style={styles.loanCaption}>{isApplied ? 'You applied for' : 'You may be eligible for up to'}</ThemedText>
+              <ThemedText style={styles.loanCaption}>{hasLiveLoan ? 'You applied for' : 'You may be eligible for up to'}</ThemedText>
               <ThemedText style={styles.loanAmount} numberOfLines={1} adjustsFontSizeToFit>
-                ₦{(isApplied ? Number(appliedAmount) : 10000000).toLocaleString('en-NG')}
+                ₦{(hasLiveLoan ? Number(appliedAmount) : 10000000).toLocaleString('en-NG')}
               </ThemedText>
 
-              {isApplied ? (
+              {hasLiveLoan ? (
                 <View style={styles.loanSteps}>
                   {LOAN_PROGRESS.map((label, index) => {
                     const done = index < loanStep;
@@ -211,7 +219,7 @@ export default function HomeScreen() {
                 <ThemedText style={styles.loanHint}>Finish your KYC to see how much you can borrow.</ThemedText>
               )}
 
-              {isApplied && status === 'applied' ? (
+              {hasLiveLoan && status === 'applied' ? (
                 <View style={styles.loanReviewing}>
                   <Ionicons name="hourglass-outline" size={16} color="#FFD7A8" />
                   <ThemedText style={styles.loanReviewingText}>We&apos;re reviewing your application</ThemedText>
@@ -221,14 +229,14 @@ export default function HomeScreen() {
                   style={styles.loanCta}
                   activeOpacity={0.85}
                   onPress={() => {
-                    if (!isApplied) openKyc();
+                    if (!hasLiveLoan) openKyc();
                     // Paid out: manage it. Approved: set up repayment and accept the offer.
-                    else if (isPaidOut || runningLoan) router.push('/(tabs)/loans');
+                    else if (isPaidOut || runningLoan) openLoansTab(navigation);
                     else if (status === 'approved') router.push('/loans/start');
                   }}
                 >
                   <ThemedText style={styles.loanCtaText}>
-                    {!isApplied ? 'Get it now' : isPaidOut || runningLoan ? 'Manage Loan' : 'Accept Offer'}
+                    {!hasLiveLoan ? 'Get it now' : isPaidOut || runningLoan ? 'Manage Loan' : 'Accept Offer'}
                   </ThemedText>
                   <Ionicons name="arrow-forward" size={18} color="#FFF" />
                 </TouchableOpacity>
@@ -237,7 +245,7 @@ export default function HomeScreen() {
           )}
 
           {/* Loan Balance Card - Only show if KYC complete and NOT applied yet */}
-          {!booting && isKYCComplete && !isApplied && (
+          {!booting && isKYCComplete && !hasLiveLoan && (
             <View style={styles.balanceCard}>
               <ThemedText style={styles.balanceLabel}>Eligible Loan Balance</ThemedText>
               <View style={styles.balanceRow}>
@@ -254,23 +262,25 @@ export default function HomeScreen() {
               {runningLoan && <ThemedText style={styles.balanceLabel}>You can request another loan once this one is repaid.</ThemedText>}
               <TouchableOpacity
                 style={styles.requestBtn}
-                onPress={() => router.push(runningLoan ? '/(tabs)/loans' : '/loans/start')}
+                onPress={() => (runningLoan ? openLoansTab(navigation) : router.push('/loans/start'))}
               >
                 <ThemedText style={styles.requestBtnText}>{runningLoan ? 'Manage Loan' : 'Request Loan'}</ThemedText>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Ads Banner */}
-          <View style={styles.adsBanner}>
-            <View style={styles.adsTextContainer}>
-              <ThemedText style={[styles.adsTitle, { color: '#d1d10bff' }]}>Need instant loan? <ThemedText style={[styles.adsTitle, { maxWidth: "100%" }]}>Get it in minutes!</ThemedText></ThemedText>
+          {/* Ads Banner: not while the loan card is showing an application. */}
+          {!booting && !hasLiveLoan && (
+            <View style={styles.adsBanner}>
+              <View style={styles.adsTextContainer}>
+                <ThemedText style={[styles.adsTitle, { color: '#d1d10bff' }]}>Need instant loan? <ThemedText style={[styles.adsTitle, { maxWidth: "100%" }]}>Get it in minutes!</ThemedText></ThemedText>
+              </View>
+              <Image
+                source={require('@/assets/images/logo-mark-white.png')}
+                style={styles.adsIcon}
+              />
             </View>
-            <Image
-              source={require('@/assets/images/logo-mark-white.png')}
-              style={styles.adsIcon}
-            />
-          </View>
+          )}
 
           {/* Transaction History */}
           <View style={styles.transactionsHeader}>

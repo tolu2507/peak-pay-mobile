@@ -14,7 +14,8 @@ import { LoanHeader, Notice, ORANGE, OutlineButton, PrimaryButton, TextLink, loa
 import { formatDate, formatNaira } from '@/constants/loan';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { openLoansTab } from '@/lib/loans-tab';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -56,6 +57,7 @@ const TONES = {
 
 export default function RepaymentScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const [summary, setSummary] = useState<RepaymentSummary | null>(null);
   const [schedule, setSchedule] = useState<Installment[]>([]);
   const [history, setHistory] = useState<Repayment[]>([]);
@@ -173,7 +175,7 @@ export default function RepaymentScreen() {
                     <ThemedText style={ls.body}>
                       {schedule.length ? 'You have no repayments outstanding.' : 'You have no loans to repay yet.'}
                     </ThemedText>
-                    <TextLink label="Back to Loans" onPress={() => router.replace('/(tabs)/loans')} />
+                    <TextLink label="Back to Loans" onPress={() => openLoansTab(navigation)} />
                   </View>
                 )}
 

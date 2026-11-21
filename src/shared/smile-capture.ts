@@ -2,6 +2,8 @@
 // payload the backend's /kyc/biometric-verification/ expects: the same
 // `{ images: [{ image_type_id, image }] }` the web camera publishes.
 
+import { File } from 'expo-file-system';
+
 // SmileID image types: 2 = selfie, 6 = liveness frame, both base64 JPEG.
 const SELFIE_IMAGE_TYPE = 2;
 const LIVENESS_IMAGE_TYPE = 6;
@@ -25,16 +27,14 @@ function readCapture(raw: unknown): { selfie: string; liveness: string[] } {
 
 const toFileUri = (path: string) => (/^[a-z]+:\/\//i.test(path) ? path : `file://${path}`);
 
-// Reads a local image as base64 without the data: prefix.
+// Reads a local image as base64 (no data: prefix) straight from disk. fetch()
+// on a file:// path fails on Android with "Network request failed".
 async function readBase64(path: string): Promise<string> {
-  const blob = await (await fetch(toFileUri(path))).blob();
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error('The selfie could not be read. Please try again.'));
-    reader.readAsDataURL(blob);
-  });
-  return dataUrl.slice(dataUrl.indexOf(',') + 1);
+  try {
+    return await new File(toFileUri(path)).base64();
+  } catch {
+    throw new Error('The selfie could not be read. Please try again.');
+  }
 }
 
 // JSON string accepted by useKYCStore.submitLiveness.

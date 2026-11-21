@@ -41,6 +41,9 @@ export const useAuthStore = create<AuthState>()(
         useKYCStore.getState().resetKYC();
         // Nor may a half-filled loan application.
         useLoanStore.getState().prepareDraft(null);
+        // prepareDraft only resets when the draft had an owner; the dashboard's
+        // loan status must always go, or the next user sees this one's loan.
+        useLoanStore.setState({ application: null, eligibility: null, isApplied: false, status: 'idle', appliedAmount: '' });
         set({ token: null, refreshToken: null, user: null, loanAmount: 0, isAuthenticated: false });
       },
       logout: async () => {

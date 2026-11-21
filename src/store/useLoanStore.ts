@@ -260,7 +260,11 @@ export const useLoanStore = create<LoanState>()(persist((set, get) => {
     },
     fetchLatestApplication: async () => {
       const [latest] = await LoanService.getLoans(1);
-      if (!latest) return;
+      // No loans yet (e.g. a new customer): clear anything shown before.
+      if (!latest) {
+        set({ application: null, status: 'idle', isApplied: false, appliedAmount: '' });
+        return;
+      }
       const status = latest.disbursement_status === 'disbursed' ? 'approved' : DASHBOARD_STATUS[latest.status];
       set({
         application: latest,

@@ -57,7 +57,6 @@ export const canReuseAddressRecord = (address: AddressVerification | null) => {
 };
 
 export type LoanRoute =
-  | '/(tabs)/loans'
   | '/loans/offer'
   | '/loans/status'
   | '/loans/apply'
@@ -67,8 +66,6 @@ export type LoanRoute =
 // Where the customer continues, from the backend's view of their application.
 // The address is only needed when no other answer fits.
 export function loanRouteFor(eligibility: LoanEligibility, address: AddressVerification | null): LoanRoute {
-  // One loan at a time: while one is being repaid, the customer manages it instead.
-  if (eligibility.has_running_loan) return '/(tabs)/loans';
   // Statements are valid for 14 days: an outdated one means sending a new statement.
   if (eligibility.assessment_status === 'statement_outdated') return '/loans/statement';
   // Approved: set up repayment and accept the offer.

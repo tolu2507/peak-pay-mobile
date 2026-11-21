@@ -22,7 +22,8 @@ import { OtpInput } from '@/shared/ui/base/otp-input';
 import { useAuthStore } from '@/store/useAuthStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { openLoansTab } from '@/lib/loans-tab';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Dimensions, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
@@ -114,6 +115,7 @@ function Sheet({ visible, title, children, onClose }: { visible: boolean; title:
 
 export default function LoanOfferScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const user = useAuthStore((state) => state.user);
   const [application, setApplication] = useState<LoanApplication | null>(null);
   const [customerAddress, setCustomerAddress] = useState<AddressVerification | null>(null);
@@ -655,7 +657,7 @@ export default function LoanOfferScreen() {
                       : 'You have accepted this offer. We are paying your loan into your bank account and will notify you when it arrives.'
                   }
                 />
-                <PrimaryButton label="Go to my loan" onPress={() => router.replace('/(tabs)/loans')} />
+                <PrimaryButton label="Go to my loan" onPress={() => openLoansTab(navigation)} />
               </>
             ) : (
               <>
@@ -829,7 +831,7 @@ export default function LoanOfferScreen() {
             ? `${formatNaira(application?.disbursed_amount || amount)} has been paid to your bank account.`
             : `Your loan of ${formatNaira(amount)} is on its way. We will notify you as soon as it reaches your bank account.`}
         </ThemedText>
-        <PrimaryButton width={DIALOG_BUTTON_WIDTH} label="Continue" onPress={() => { setDialog(null); router.replace('/(tabs)/loans'); }} />
+        <PrimaryButton width={DIALOG_BUTTON_WIDTH} label="Continue" onPress={() => { setDialog(null); openLoansTab(navigation); }} />
       </Sheet>
     </ThemedView>
   );

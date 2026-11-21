@@ -9,7 +9,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { isLoanKycReady, useKYCStore } from '@/store/useKYCStore';
 import { useLoanStore } from '@/store/useLoanStore';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { openLoansTab } from '@/lib/loans-tab';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +21,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // customer's application stands and opens the right step, like the web.
 export default function LoanStartScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const [failed, setFailed] = useState(false);
 
   const route = useCallback(async () => {
@@ -39,6 +41,11 @@ export default function LoanStartScreen() {
       const loans = useLoanStore.getState();
       loans.prepareDraft(useAuthStore.getState().user?.id ?? null);
       const eligibility = await loans.getEligibility();
+      // One loan at a time: while one is being repaid, the customer manages it instead.
+      if (eligibility.has_running_loan) {
+        openLoansTab(navigation);
+        return;
+      }
       const address = eligibility.can_apply || eligibility.application_status === 'open'
         ? null
         : await loans.loadCurrentAddress().catch(() => null);
@@ -46,7 +53,7 @@ export default function LoanStartScreen() {
     } catch {
       setFailed(true);
     }
-  }, [router]);
+  }, [router, navigation]);
 
   useEffect(() => {
     void route();
