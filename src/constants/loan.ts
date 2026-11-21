@@ -57,6 +57,7 @@ export const canReuseAddressRecord = (address: AddressVerification | null) => {
 };
 
 export type LoanRoute =
+  | '/(tabs)/loans'
   | '/loans/offer'
   | '/loans/status'
   | '/loans/apply'
@@ -66,6 +67,8 @@ export type LoanRoute =
 // Where the customer continues, from the backend's view of their application.
 // The address is only needed when no other answer fits.
 export function loanRouteFor(eligibility: LoanEligibility, address: AddressVerification | null): LoanRoute {
+  // One loan at a time: while one is being repaid, the customer manages it instead.
+  if (eligibility.has_running_loan) return '/(tabs)/loans';
   // Statements are valid for 14 days: an outdated one means sending a new statement.
   if (eligibility.assessment_status === 'statement_outdated') return '/loans/statement';
   // Approved: set up repayment and accept the offer.
@@ -79,9 +82,19 @@ export function loanRouteFor(eligibility: LoanEligibility, address: AddressVerif
 
 // Why the customer is sending documents again.
 export const EVIDENCE_NOTICES: Partial<Record<LoanEligibility['assessment_status'], string>> = {
-  ineligible: 'Your last review did not give you a borrowing limit. You can send updated documents for another review.',
+  ineligible: "We couldn't offer you a loan based on your last bank statement. You can try again with a different bank account.",
   expired: 'Your borrowing limit expired after 14 days. Send your documents again to refresh it.',
   refresh_required: 'We need newer documents before you can apply.',
   statement_outdated:
     "Your bank statement is no longer recent, so we couldn't finish reviewing it. Pull a new statement from your bank and we'll review your eligibility again.",
 };
+
+// "5 December 2026", in Lagos time.
+const retryDay = (value: string) =>
+  new Date(value).toLocaleDateString('en-GB', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long', year: 'numeric' });
+
+// After a decline the same account waits two weeks; a different one can be used now.
+export const retrySameAccountNote = (eligibility: LoanEligibility | null | undefined) =>
+  eligibility?.assessment_status === 'ineligible' && eligibility.retry_same_account_after
+    ? `To use ${eligibility.declined_account || 'the same account'} again, pull a new statement from ${retryDay(eligibility.retry_same_account_after)}.`
+    : '';

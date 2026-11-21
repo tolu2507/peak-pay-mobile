@@ -1,7 +1,7 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { UTILITY_BILL_OPTIONS, type AddressVerification, type UploadFile, type UtilityBillType } from '@/api/services/loan.service';
-import { EVIDENCE_NOTICES, LOAN_STEPS, canReuseAddressRecord } from '@/constants/loan';
+import { EVIDENCE_NOTICES, LOAN_STEPS, canReuseAddressRecord, retrySameAccountNote } from '@/constants/loan';
 import { NIGERIAN_STATES } from '@/constants/nigeria';
 import { Button } from '@/shared/ui/base/button';
 import { CircularProgress } from '@/shared/ui/molecules/circular-progress';
@@ -67,6 +67,7 @@ export default function AddressLoanScreen() {
   // A verified or pending address on file is reused unless the user moved.
   const showForm = !canReuseAddressRecord(currentAddress) || useNewAddress;
   const notice = eligibility && EVIDENCE_NOTICES[eligibility.assessment_status];
+  const retryNote = retrySameAccountNote(eligibility);
   const billLabel = UTILITY_BILL_OPTIONS.find((option) => option.value === address.billType)?.label;
 
   const openSheet = (which: 'state' | 'billType') => {
@@ -147,7 +148,10 @@ export default function AddressLoanScreen() {
           {notice && (
             <View style={styles.notice}>
               <Ionicons name="alert-circle-outline" size={20} color="#FF7A00" />
-              <ThemedText style={styles.noticeText}>{notice}</ThemedText>
+              <ThemedText style={styles.noticeText}>
+                {notice}
+                {!!retryNote && <ThemedText style={styles.noticeSubtext}>{`\n${retryNote}`}</ThemedText>}
+              </ThemedText>
             </View>
           )}
 
@@ -323,6 +327,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#000',
     fontWeight: '600',
+  },
+  noticeSubtext: {
+    fontSize: 13,
+    color: '#4B4B55',
+    fontWeight: '400',
   },
   errorText: {
     color: '#FF3B30',

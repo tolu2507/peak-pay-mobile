@@ -37,6 +37,9 @@ export default function HomeScreen() {
     ? Number(eligibility.eligible_amount || 0)
     : 0;
   const isPaidOut = application?.disbursement_status === 'disbursed';
+  // One loan at a time (until top-ups are decided): while a paid-out loan is
+  // being repaid, Manage Loan is the main action and Request Loan is off.
+  const runningLoan = eligibility?.has_running_loan === true;
   const [filter, setFilter] = useState<'All' | 'Credit' | 'Debit'>('All');
   const { fullName, initials, photo, loading: profileLoading } = useCurrentUser();
   // True until the first KYC/loan sync settles, so the cards don't flash the
@@ -165,7 +168,7 @@ export default function HomeScreen() {
                 </ThemedText>
                 <View style={styles.statusRow}>
                   <ThemedText style={[styles.statusTag, isApplied && { backgroundColor: status === 'applied' ? '#E0F2FE' : '#DCFCE7', color: status === 'applied' ? '#0369A1' : '#15803D' }]}>
-                    {isApplied ? (status === 'applied' ? 'Under Review' : isPaidOut ? 'Active' : 'Approved') : 'Action Required'}
+                    {isApplied ? (status === 'applied' ? 'Under Review' : isPaidOut || runningLoan ? 'Active' : 'Approved') : 'Action Required'}
                   </ThemedText>
                 </View>
                 <TouchableOpacity
@@ -173,13 +176,13 @@ export default function HomeScreen() {
                   onPress={() => {
                     if (!isApplied) openKyc();
                     // Paid out: manage it. Approved: set up repayment and accept the offer.
-                    else if (isPaidOut) router.push('/(tabs)/loans');
+                    else if (isPaidOut || runningLoan) router.push('/(tabs)/loans');
                     else if (status === 'approved') router.push('/loans/start');
                   }}
                   disabled={isApplied && status === 'applied'}
                 >
                   <ThemedText style={styles.getItText}>
-                    {isApplied ? (status === 'applied' ? 'Reviewing...' : isPaidOut ? 'Manage Loan' : 'Accept Offer') : 'Get it now'}
+                    {isApplied ? (status === 'applied' ? 'Reviewing...' : isPaidOut || runningLoan ? 'Manage Loan' : 'Accept Offer') : 'Get it now'}
                   </ThemedText>
                 </TouchableOpacity>
               </View>
@@ -201,11 +204,12 @@ export default function HomeScreen() {
               ) : eligibility?.assessment_status === 'statement_outdated' && !eligibility.application_id ? (
                 <ThemedText style={styles.balanceLabel}>Your bank statement is no longer recent · pull a new one to continue</ThemedText>
               ) : null}
+              {runningLoan && <ThemedText style={styles.balanceLabel}>You can request another loan once this one is repaid.</ThemedText>}
               <TouchableOpacity
                 style={styles.requestBtn}
-                onPress={() => router.push('/loans/start')}
+                onPress={() => router.push(runningLoan ? '/(tabs)/loans' : '/loans/start')}
               >
-                <ThemedText style={styles.requestBtnText}>Request Loan</ThemedText>
+                <ThemedText style={styles.requestBtnText}>{runningLoan ? 'Manage Loan' : 'Request Loan'}</ThemedText>
               </TouchableOpacity>
             </View>
           )}

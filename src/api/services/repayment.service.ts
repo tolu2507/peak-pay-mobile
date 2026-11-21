@@ -59,7 +59,8 @@ export function setupProgress(method: RepaymentMethod): SetupProgress {
   }
   const mandate = method.record;
   if (mandate.status === 'pending') return { state: 'waiting', message: 'Waiting for your bank to confirm the direct debit. This can take a few minutes.' };
-  if (mandate.status !== 'active') return { state: 'failed', message: 'This direct debit is no longer active. Start again.' };
+  // Includes one the bank didn't confirm within a day, which the backend closes.
+  if (mandate.status !== 'active') return { state: 'failed', message: 'Your bank did not confirm this direct debit. Set it up again or use a debit card.' };
   if (mandate.setup_fee_status === 'success') return { state: 'done', message: 'Your bank account is set up for repayments.' };
   if (mandate.setup_fee_status === 'failed') {
     return { state: 'failed', message: `We could not charge the setup fee${mandate.setup_fee_message ? `: ${mandate.setup_fee_message}` : '.'} Fund your account and try again.` };
@@ -85,6 +86,14 @@ export interface RepaymentOptions {
 // The loan screens show errors inline, not as a toast.
 const inline = { skipErrorToast: true };
 
+// The mandate and card lists come back as a bare JSON array, not wrapped in
+// { data }. Accept either, and never hand callers anything but an array.
+function listFrom<T>(body: unknown): T[] {
+  if (Array.isArray(body)) return body as T[];
+  const wrapped = (body as { data?: unknown } | null)?.data;
+  return Array.isArray(wrapped) ? (wrapped as T[]) : [];
+}
+
 class RepaymentService {
   async options(): Promise<RepaymentOptions> {
     const response = await apiClient.get('/repayment-options/', inline);
@@ -93,7 +102,7 @@ class RepaymentService {
 
   async listMandates(): Promise<DirectDebitMandate[]> {
     const response = await apiClient.get('/direct-debit/mandates/', inline);
-    return response.data.data;
+    return listFrom<DirectDebitMandate>(response.data);
   }
 
   // Returns the mandate with redirect_url, where the customer authorizes it.
@@ -110,7 +119,7 @@ class RepaymentService {
 
   async listCards(): Promise<PaymentCard[]> {
     const response = await apiClient.get('/payment-cards/', inline);
-    return response.data.data;
+    return listFrom<PaymentCard>(response.data);
   }
 
   // Returns the card with authorization_url, Paystack's checkout page.

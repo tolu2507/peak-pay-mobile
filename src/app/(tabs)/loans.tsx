@@ -58,7 +58,7 @@ export default function LoansScreen() {
       ]);
       setEligibility(elig);
       setSummary(sum);
-      setSchedule(sched || []);
+      setSchedule(Array.isArray(sched) ? sched : []);
       setApplication(loans[0] || null);
       setAddress(addr);
     } catch {
@@ -77,6 +77,7 @@ export default function LoansScreen() {
 
   // Manage Loan shows once the loan has been paid out.
   const hasActiveLoan =
+    eligibility?.has_running_loan === true ||
     application?.disbursement_status === 'disbursed' ||
     Boolean(summary && Number(summary.outstanding_balance) > 0) ||
     schedule.length > 0;

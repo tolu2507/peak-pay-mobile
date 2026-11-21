@@ -25,7 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, Dimensions, Modal, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // The mobile version of the web's LoanOfferFlow: set up repayment (direct
@@ -63,6 +63,19 @@ const recalledSetup = async (loanId: string): Promise<PendingSetup | null> => {
   }
 };
 const forgetSetup = (loanId: string) => AsyncStorage.removeItem(setupKey(loanId)).catch(() => undefined);
+
+// A setup still waiting on Paystack or the bank, newest first, as the web finds it
+// when the customer comes back later (or on another device).
+async function latestPendingSetup(): Promise<PendingSetup | null> {
+  const [mandates, cards] = await Promise.all([RepaymentService.listMandates(), RepaymentService.listCards()]);
+  const candidates: (PendingSetup & { created: string })[] = [
+    ...mandates.filter((m) => m.status === 'pending' || (m.status === 'active' && m.setup_fee_status !== 'success'))
+      .map((m) => ({ kind: 'direct_debit' as const, id: m.id, created: m.created_date })),
+    ...cards.filter((c) => c.status === 'pending').map((c) => ({ kind: 'card' as const, id: c.id, created: c.created_date })),
+  ];
+  candidates.sort((a, b) => b.created.localeCompare(a.created));
+  return candidates[0] || null;
+}
 
 async function verifySetup(setup: PendingSetup): Promise<RepaymentMethod> {
   return setup.kind === 'card'
@@ -123,6 +136,8 @@ export default function LoanOfferScreen() {
   const [accountId, setAccountId] = useState('');
   const [address, setAddress] = useState({ state: '', city: '', street: '' });
   const [progress, setProgress] = useState<SetupProgress | null>(null);
+  // Checking stopped while the setup was still waiting.
+  const [stillWaiting, setStillWaiting] = useState(false);
   const [consent, setConsent] = useState(false);
   const [codeSentTo, setCodeSentTo] = useState<OfferCodeDestination | null>(null);
   const [otp, setOtp] = useState('');
@@ -145,11 +160,16 @@ export default function LoanOfferScreen() {
     setPaymentMethod(method);
   }, []);
 
+  // Checks every few seconds for a couple of minutes, then stops: a bank can take
+  // hours to confirm a direct debit, so the customer is told they can come back.
   const confirmSetup = useCallback(
     async (loan: LoanApplication, setup: PendingSetup) => {
       setStage('confirming');
       setProgress(null);
+      setStillWaiting(false);
       for (let tries = 0; tries < SETUP_POLL_TRIES && activeRef.current; tries++) {
+        // Don't spend checks while the app is in the background.
+        if (AppState.currentState !== 'active') { tries--; await wait(SETUP_POLL_MS); continue; }
         try {
           const current = setupProgress(await verifySetup(setup));
           if (!activeRef.current) return;
@@ -173,6 +193,7 @@ export default function LoanOfferScreen() {
         }
         await wait(SETUP_POLL_MS);
       }
+      if (activeRef.current) setStillWaiting(true);
     },
     [showSummary],
   );
@@ -209,7 +230,10 @@ export default function LoanOfferScreen() {
           await showSummary(loan);
           return;
         }
-        const setup = await recalledSetup(loan.id);
+        // Back from Paystack, or back later while the bank confirms: carry on with
+        // the setup in progress rather than starting (and cancelling it with) a new one.
+        // Finding it is best effort: if it fails, the customer picks a method.
+        const setup = (await recalledSetup(loan.id)) || (await latestPendingSetup().catch(() => null));
         if (!active) return;
         if (setup) {
           await confirmSetup(loan, setup);
@@ -573,12 +597,20 @@ export default function LoanOfferScreen() {
           <View style={[ls.form, { alignItems: 'center' }]}>
             {progress?.state === 'failed' ? (
               <Ionicons name="close-circle-outline" size={40} color="#FF3B30" />
+            ) : stillWaiting ? (
+              <Ionicons name="time-outline" size={40} color={ORANGE} />
             ) : (
               <ActivityIndicator size="large" color={ORANGE} />
             )}
             <ThemedText style={[ls.body, { textAlign: 'center' }]}>{progress?.message || 'Checking your repayment setup…'}</ThemedText>
             {progress?.state === 'failed' ? (
               <PrimaryButton label="Choose a repayment method" onPress={() => { setProgress(null); setStage('setup'); }} />
+            ) : stillWaiting ? (
+              <>
+                <ThemedText style={[ls.body, { textAlign: 'center' }]}>This is taking longer than usual. Some banks take a few hours to confirm. You can leave this page: your application stays open, and you can come back to continue once it&apos;s confirmed.</ThemedText>
+                <PrimaryButton label="Check again" onPress={() => { setLoading(true); setAttempt((value) => value + 1); }} />
+                <TextLink label="Return to dashboard" onPress={() => router.replace('/(tabs)')} />
+              </>
             ) : (
               <TextLink label="Check again" onPress={() => { setLoading(true); setAttempt((value) => value + 1); }} />
             )}

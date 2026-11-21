@@ -89,7 +89,8 @@ export default function ProfileScreen() {
 
           <View style={styles.section}>
             <ThemedText style={styles.sectionHeader}>Support & More</ThemedText>
-            <SettingItem icon="help-circle-outline" label="Help Center" onPress={() => {}} />
+            {/* Hidden for now; no help center screen yet.
+            <SettingItem icon="help-circle-outline" label="Help Center" onPress={() => {}} /> */}
             <SettingItem icon="document-text-outline" label="Terms & Conditions" onPress={() => router.push('/legal?url=https://www.mypeakpay.com/terms&title=Terms%20and%20Conditions' as any)} />
             <SettingItem icon="log-out-outline" label="Log Out" onPress={handleLogout} color="#FF3B30" showChevron={false} />
           </View>

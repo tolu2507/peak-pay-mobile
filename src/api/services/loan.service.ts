@@ -93,6 +93,13 @@ export interface LoanEligibility {
   // so the customer must pull a new one and is reviewed again.
   assessment_status: 'not_started' | 'pending_review' | 'eligible' | 'ineligible' | 'refresh_required' | 'statement_outdated' | 'expired';
   can_apply: boolean;
+  // A paid-out loan is still being repaid. One loan at a time: the customer
+  // manages that loan and can't request another until it's repaid.
+  has_running_loan?: boolean;
+  // After a decline (assessment_status "ineligible"): a different bank account can
+  // be used straight away; the declined one (e.g. "Access Bank ••••6789") from this time.
+  retry_same_account_after?: string | null;
+  declined_account?: string | null;
   minimum_amount: string;
   disbursement_status: 'pending' | 'disbursed' | null;
   expires_at: string | null;
