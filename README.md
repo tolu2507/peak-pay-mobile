@@ -1,5 +1,7 @@
 # Welcome to your Expo app 👋
 
+> **Releasing to iOS (TestFlight / App Store)?** Follow [IOS_RELEASE.md](./IOS_RELEASE.md). EAS builds and uploads everything, so no Xcode is needed.
+
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started

@@ -2,6 +2,7 @@
   "expo": {
     "name": "PeakPay",
     "slug": "peak-pay",
+    "owner": "peakpay-org",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -24,7 +25,12 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.peakpay.app",
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -69,7 +75,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7ad245a8-0b04-4bd9-b860-79ec6f8cfe23"
+        "projectId": "2edc903d-a8bd-4395-8684-45b44cf6ffde"
       }
     }
   }
