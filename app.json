@@ -9,8 +9,11 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.tolulopeb.peakpay",
-      "supportsTablet": false
+      "bundleIdentifier": "com.peakpay.app",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +23,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.tolulopeb.peakpay",
+      "package": "com.peakpay.app",
       "icon": "./assets/images/icon.png"
     },
     "web": {
@@ -55,7 +58,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow PeakPay to access your photos so you can set a profile picture.",
-          "cameraPermission": "Allow PeakPay to use your camera to take a profile picture."
+          "cameraPermission": "Allow PeakPay to use your camera to verify your identity with a selfie and to take a profile picture."
         }
       ]
     ],
