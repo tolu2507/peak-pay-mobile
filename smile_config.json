@@ -1,6 +1,6 @@
 {
-  "auth_token": "SHfz36RcDFgkCHSI3i4YB+R+8BC/nVdoYJaNBCqk1RBXRGBj++oEv21GRtUd+/JfoflvBYSkt3iMImS0aUC0FRxLvJ0pJfSCGujdn3+UHlKIuerGJ6FF2IyToZpuPxR8AERUWeYosh3KN704/6n/tikoU6l0in45724abPp1jyM=",
-  "partner_id": "7980",
+  "auth_token": "phIgLF6HA3KpyEke2diWoizliisdh+QMI+ongCN+PQdknOntX741aWsw9Tl+Dn1UqlID+eRhRw0oGKDAnPxzFWs8SFynlWesuS7VOuL3XlxPRpH6HAyhmNSvSNMCvHKepNOIaMygpf05egwV1keK3lPXjwrVlvB9uSazjHdB+JA=",
+  "partner_id": "8652",
   "prod_lambda_url": "https://api.smileidentity.com/v1/",
   "prod_url": "",
   "test_lambda_url": "https://testapi.smileidentity.com/v1/",

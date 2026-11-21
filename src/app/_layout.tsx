@@ -18,16 +18,16 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 // Create configuration object with your Smile ID portal credentials
 const config = new SmileConfig(
-  '7980',              // Partner ID from Smile ID portal
-  'SHfz36RcDFgkCHSI3i4YB+R+8BC/nVdoYJaNBCqk1RBXRGBj++oEv21GRtUd+/JfoflvBYSkt3iMImS0aUC0FRxLvJ0pJfSCGujdn3+UHlKIuerGJ6FF2IyToZpuPxR8AERUWeYosh3KN704/6n/tikoU6l0in45724abPp1jyM=',              // Authentication token
+  '8652',              // Partner ID from Smile ID portal
+  'phIgLF6HA3KpyEke2diWoizliisdh+QMI+ongCN+PQdknOntX741aWsw9Tl+Dn1UqlID+eRhRw0oGKDAnPxzFWs8SFynlWesuS7VOuL3XlxPRpH6HAyhmNSvSNMCvHKepNOIaMygpf05egwV1keK3lPXjwrVlvB9uSazjHdB+JA=',              // Authentication token
   'https://api.smileidentity.com/v1/',  // Production lambda URL
   'https://testapi.smileidentity.com/v1/'   // Test lambda URL
 );
 
 // Start the SDK once per app launch. Calling this during render restarted it
 // on every navigation, which could cut off a selfie capture in progress.
-// true = sandbox; switch to false with production credentials.
-initialize(true, true, config).catch((error) => console.error('SmileID initialize failed:', error));
+// false = live (production) environment, same as the web.
+initialize(false, true, config).catch((error) => console.error('SmileID initialize failed:', error));
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

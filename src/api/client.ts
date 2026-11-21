@@ -11,7 +11,7 @@ declare module 'axios' {
 
 // The web app reaches the backend through a Next.js proxy at /api; the app
 // calls it directly. Set EXPO_PUBLIC_API_URL to point at another backend.
-export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://peakpay-backend-dev.up.railway.app/api').replace(/\/+$/, '');
+export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://peakpay-backend-production.up.railway.app/api').replace(/\/+$/, '');
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
